@@ -509,22 +509,36 @@ export function buildCity(city: CityData, progress: (msg: string) => void = () =
     }
     const cx = p2.reduce((s, p) => s + p[0], 0) / p2.length, cz = p2.reduce((s, p) => s + p[1], 0) / p2.length;
     const business = b.companyKind ?? (b.srv === 'Commercial' ? 'shop' : b.srv === 'Industrial' ? 'industry' : b.srv === 'Office' ? 'office' : null);
+    const specialPoi = [b.myname, b.individualName, b.exportLabel, b.name].some(name => name?.includes('政府')) ? 'government'
+      : b.srv === 'Residential' ? 'residential' : null;
+    const codes = b.salesCodes ?? [];
+    const salesPoi = codes.includes('Beverages') ? 'beverages' : codes.includes('Lodging') ? 'lodging'
+      : ['Food', 'Meals', 'ConvenienceFood'].some(code => codes.includes(code)) ? 'food'
+      : codes.includes('Chemicals') ? 'chemicals' : null;
     const companyIsChosenName = !!b.companies?.includes(b.myname);
     const companies = b.companies?.join(' · ') ?? '';
     const addressLabel = b.address ? (/\p{Script=Han}/u.test(b.address.street)
       ? b.address.street + b.address.number + '号' : [b.address.street, b.address.number].filter(Boolean).join(' ')) : '';
     const addressOnly = !companies && !b.myname && !b.individualName && !!addressLabel && (business !== null || b.srv === 'Residential');
+    const addressText = addressOnly && !specialPoi && !salesPoi;
+    const companyMarker = specialPoi !== 'government' && business && companies ? salesPoi ?? business : null;
+    let dx = 0, dz = 0;
+    if (specialPoi === 'residential' && companyMarker) {
+      // Separate the two markers along the frontage of a mixed-use lot.
+      const edges = [p2[1], p2[p2.length - 1]].map(([x, z]) => [x - p2[0][0], z - p2[0][1]] as XY);
+      [dx, dz] = edges.sort((a, b) => Math.hypot(...b) - Math.hypot(...a))[0].map(v => v * 0.28);
+    }
     const businessInfo: Props = { ...(companies ? { companies } : {}),
       ...(b.address ? { houseNumber: b.address.number, street: b.address.street, addressLabel } : {}),
       ...(b.products?.sells ? { sells: b.products.sells } : {}),
       ...(b.products?.produces ? { produces: b.products.produces } : {}),
       ...(b.products?.stores ? { stores: b.products.stores } : {}) };
-    if (business && b.companies?.length) {
-      const center = toLngLat(cx, cz);
-      places.push({ type: 'Feature', properties: { ...businessInfo, buildingId: b.id, kind: 'poi', poi: business, name: companies,
+    if (companyMarker) {
+      const center = toLngLat(cx + dx, cz + dz);
+      places.push({ type: 'Feature', properties: { ...businessInfo, buildingId: b.id, kind: 'poi', poi: companyMarker, name: companies,
         rank: companyIsChosenName ? 4 : 6, area: Math.round(area) }, geometry: { type: 'Point', coordinates: center } });
-      for (const name of b.companies) search.push({ name, kind: 'poi', sub: business, center, zoom: 17 });
-    } else if (addressOnly && !head) {
+      for (const name of b.companies ?? []) search.push({ name, kind: 'poi', sub: companyMarker, center, zoom: 17 });
+    } else if (addressText && !head) {
       const center = toLngLat(cx, cz);
       places.push({ type: 'Feature', properties: { ...businessInfo, buildingId: b.id, kind: 'business-address', name: addressLabel, area: Math.round(area) },
         geometry: { type: 'Point', coordinates: center } });
@@ -540,8 +554,8 @@ export function buildCity(city: CityData, progress: (msg: string) => void = () =
     const ordered = ccw ? ring : [...ring].reverse();
     const asset = cleanName(b.name);
     // parts are labelled as their asset: the player's name for it, else the main building's asset name
-    const nm = b.myname || head?.myname || b.individualName || (addressOnly ? addressLabel : undefined) ||
-      (head ? cleanName(head.name) : cat.poi && b.exportLabel ? b.exportLabel : asset);
+    const nm = b.myname || head?.myname || b.individualName || ((addressOnly || specialPoi === 'residential') ? addressLabel : undefined) ||
+      (head ? cleanName(head.name) : (specialPoi || cat.poi) && b.exportLabel ? b.exportLabel : asset);
     const gid = headId ?? b.id;
     const base = { ...businessInfo, ...b.stats, id: b.id, cat: cat.cat, name: nm, asset, named: b.myname || head?.myname ? 1 : 0, srv: b.srv, icls: b.icls, area: Math.round(area), district: districtAt(cx, cz), part: head ? 1 : 0, grp: gid, nparts: groupSize.get(gid) ?? 1 };
     lots.push({ type: 'Feature', id: b.id, properties: base, geometry: { type: 'Polygon', coordinates: [ordered.map(llxy)] } });
@@ -553,17 +567,19 @@ export function buildCity(city: CityData, progress: (msg: string) => void = () =
       blds.push({ type: 'Feature', id: b.id, properties: { ...base, h }, geometry: { type: 'Polygon', coordinates: [inner] } });
     }
     // stations the player named are attached to the transit markers below
-    if (b.myname && stMode && !head) continue;
-    if (head || addressOnly || (business && companyIsChosenName)) continue; // parts never repeat asset labels
+    if (b.myname && stMode && !head && !specialPoi) continue;
+    if (head || addressText || (!specialPoi && companyMarker && (companyIsChosenName || salesPoi))) continue;
     // toll booths get their own marker (tolls section); don't also label them as a named landmark
-    const poi = /Toll Booth/i.test(b.name) ? null : cat.poi ?? (b.myname || b.independentAnnex ? (b.subsrv.includes('Bus') ? 'bus' : 'landmark') : null);
-    if (poi && nm.length > 1 && (b.myname || !(poi === 'landmark' && isJunkName(nm)))) {
-      if (b.exportLabel === undefined && poiSeen.some((p) => p.name === nm && Math.hypot(p.x - cx, p.z - cz) < 250)) continue;
+    const poi = specialPoi ?? salesPoi ?? (/Toll Booth/i.test(b.name) ? null : cat.poi ??
+      (b.myname || b.independentAnnex ? (b.subsrv.includes('Bus') ? 'bus' : 'landmark') : null));
+    if (poi && (poi === 'residential' || nm.length > 1) && (b.myname || !(poi === 'landmark' && isJunkName(nm)))) {
+      if (poi !== 'residential' && b.exportLabel === undefined && poiSeen.some((p) => p.name === nm && Math.hypot(p.x - cx, p.z - cz) < 250)) continue;
       poiSeen.push({ name: nm, x: cx, z: cz, poi, area });
       let rank = poi === 'hospital' && cat.height > 20 ? 3 : poi === 'landmark' ? (area > 8000 ? 4 : 5) : poi === 'school' && /University/i.test(b.icls) ? 4 : 6;
       if (b.myname) rank = Math.min(rank, 4); // names the player chose get shown early
-      places.push({ type: 'Feature', properties: { buildingId: b.id, kind: 'poi', poi, name: nm, rank, area: Math.round(area) }, geometry: { type: 'Point', coordinates: toLngLat(cx, cz) } });
-      search.push({ name: nm, kind: 'poi', sub: poi, center: toLngLat(cx, cz), zoom: 17 });
+      const center = toLngLat(cx - dx, cz - dz);
+      places.push({ type: 'Feature', properties: { buildingId: b.id, kind: 'poi', poi, name: nm, rank, area: Math.round(area) }, geometry: { type: 'Point', coordinates: center } });
+      if (nm) search.push({ name: nm, kind: 'poi', sub: poi, center, zoom: 17 });
     }
   }
   // Station footprints. A named station is its whole asset: main hall, extra halls and platform/stair props,

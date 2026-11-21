@@ -1,4 +1,27 @@
 import type { Map as MLMap } from 'maplibre-gl';
+import house from './lucide-icons/house.svg?raw';
+import drink from './lucide-icons/cup-soda.svg?raw';
+import cityHall from './lucide-icons/landmark.svg?raw';
+import bed from './lucide-icons/bed-double.svg?raw';
+import utensils from './lucide-icons/utensils.svg?raw';
+import flask from './lucide-icons/flask-conical.svg?raw';
+
+const lucideBadges: Record<string, { svg: string; color: string }> = {
+  residential: { svg: house, color: '#3276cc' },
+  beverages: { svg: drink, color: '#cc5a12' },
+  government: { svg: cityHall, color: '#68717d' },
+  lodging: { svg: bed, color: '#a780cf' },
+  food: { svg: utensils, color: '#cc5a12' },
+  chemicals: { svg: flask, color: '#248550' },
+};
+
+function svgBadgeUrl({ svg, color }: { svg: string; color: string }, size: number) {
+  const pictogram = svg.replace('currentColor', '#fff');
+  const badge = `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 24 24"><circle cx="12" cy="12" r="11" fill="white"/><circle cx="12" cy="12" r="9.6" fill="${color}"/><g transform="translate(3.8 3.8) scale(.68)">${pictogram}</g></svg>`;
+  return 'data:image/svg+xml,' + encodeURIComponent(badge);
+}
+
+const lucideImages = new Map<string, Promise<HTMLImageElement>>();
 
 // Pictograms drawn on a 24-unit grid, white on a coloured badge.
 const GLYPHS: Record<string, (c: CanvasRenderingContext2D) => void> = {
@@ -89,6 +112,20 @@ export function addIcons(map: MLMap, stationColors: string[]) {
     add('poi-' + k, badge(v.color, v.glyph, !!v.square, v.square ? 20 : 22));
     add('poi-sm-' + k, badge(v.color, v.glyph, !!v.square, 15));
   }
+  for (const [kind, style] of Object.entries(lucideBadges)) {
+    const id = 'poi-' + kind;
+    if (map.hasImage(id)) continue;
+    let ready = lucideImages.get(id);
+    if (!ready) {
+      const image = new Image();
+      image.src = svgBadgeUrl(style, 44);
+      ready = image.decode().then(() => image);
+      lucideImages.set(id, ready);
+    }
+    void ready.then(image => {
+      if (!map.hasImage(id)) map.addImage(id, image, { pixelRatio: 2 });
+    }).catch(error => console.warn('Could not register map icon', id, error));
+  }
   for (const col of stationColors) {
     for (const m of ['train', 'metro', 'tram', 'monorail', 'ferry', 'cablecar']) add(`st-${m}-${col}`, badge(col, POI_STYLE[m].glyph, true, 20));
   }
@@ -110,6 +147,7 @@ export function addIcons(map: MLMap, stationColors: string[]) {
 
 /** Badge as a data URL, used in the UI (search results, info panel). */
 export function iconDataUrl(kind: string, color?: string): string {
+  if (lucideBadges[kind]) return svgBadgeUrl(lucideBadges[kind], 48);
   const v = POI_STYLE[kind] ?? { color: '#7c8088', glyph: 'dot' };
   const img = badge(color ?? v.color, v.glyph, !!v.square, 24);
   const cv = document.createElement('canvas'); cv.width = img.width; cv.height = img.height;

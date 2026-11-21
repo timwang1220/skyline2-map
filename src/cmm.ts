@@ -465,6 +465,7 @@ export async function readCmm(bytes: Uint8Array, cat: LaneCatalog, nativeTerrain
     const exportLabel = cs2 ? str(b.display_name?.text).trim() : undefined;
     return { id, name: str(b.name), myname: b.display_name?.source === 'custom' ? str(b.display_name.text).trim() : '', srv: str(b.service), subsrv: str(b.sub_service), icls: str(b.icls),
       ...(companies.length ? { companies: [...new Set<string>(companies)] } : {}), companyKind, products, exportLabel,
+      salesCodes: nativeTerrain && Array.isArray(b.sales_codes) ? b.sales_codes.filter((code: unknown) => typeof code === 'string') : undefined,
       stats: nativeTerrain ? b.skyline_stats : undefined,
       individualName: b.individual_name === true || b.independent_annex === true ? exportLabel : undefined,
       independentAnnex: nativeTerrain && b.independent_annex === true,

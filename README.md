@@ -31,6 +31,8 @@ In the repository containing this website's source, choose **Settings → Pages 
 
 ## Credits
 
+- House, Cup Soda, Landmark, Bed Double, Utensils and Flask Conical are from [Lucide](https://github.com/lucide-icons/lucide/tree/c1a02a04d4f3f7049d44567d62b8b06cff0b9103/icons). See the [license notice](public/licenses/lucide.txt).
+
 - Map exports come from the [CSLMapView](https://steamcommunity.com/sharedfiles/filedetails/?id=845665815) mod. Its original web viewer inspired the format knowledge; no code from it is used.
 - Rendering by [MapLibre GL JS](https://maplibre.org/). Font: [Pretendard](https://github.com/orioncactus/pretendard) (SIL OFL 1.1).
 - Lane-arrow rules follow [TM:PE](https://github.com/CitiesSkylinesMods/TMPE)'s behaviour.

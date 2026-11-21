@@ -187,7 +187,8 @@ export async function normalizeCs2Map(bytes: Uint8Array, fileTime: string) {
       independent_annex: independentAnnex,
       individual_name: !!(flags & 0x20000000) && /signature/i.test(prefabName),
       ...(record ? { company_kind: attr(record, 'kind'), company_names: tenants.map((tenant) => attr(tenant, 'name')).filter(Boolean),
-        house_number: attr(record, 'number'), street_name: attr(record, 'road'), business_products: products } : {}),
+        house_number: attr(record, 'number'), street_name: attr(record, 'road'), business_products: products,
+        sales_codes: [...record.querySelectorAll('Product[activity="sells"]')].map(product => attr(product, 'code')).filter(Boolean) } : {}),
       parent_building_id: parentId, display_name: { text: name, source: attr(e, 'customName') === 'true' ? 'custom' : 'game' } };
   });
   const areas = children(districts, 'Districts').map((e, i) => {
