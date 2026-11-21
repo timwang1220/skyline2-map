@@ -145,7 +145,7 @@ export function buildStyle(o: StyleOptions, fontBase: string): StyleSpecificatio
     { id: 'forest', type: 'fill', source: 'land', filter: ['==', ['get', 'kind'], 'forest'], paint: { 'fill-color': p.forest, 'fill-opacity': ['interpolate', ['linear'], ['zoom'], 10, 0.8, 16, 1] } },
     { id: 'forest-dense', type: 'fill', source: 'land', filter: ['==', ['get', 'kind'], 'forest_dense'], paint: { 'fill-color': p.forestDense } },
     {
-      id: 'hillshade', type: 'hillshade', source: 'dem',
+      id: 'hillshade', type: 'hillshade', source: 'dem', layout: { visibility: vis(o.terrain) },
       paint: {
         'hillshade-method': 'igor',
         'hillshade-exaggeration': (o.terrain ? 0.75 : 0.35) * (o.theme === 'dark' ? 0.6 : 1),

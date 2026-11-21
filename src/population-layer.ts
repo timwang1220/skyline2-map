@@ -3,6 +3,8 @@ import { toLngLat } from './geo';
 import type { PopulationGrid } from './parse';
 
 export const populationLayer = 'population-density';
+const lowDensity = [184, 223, 250];
+const highDensity = [25, 79, 159];
 
 export function showPopulationGrid(map: Map, grid: PopulationGrid | undefined, visible: boolean) {
   if (map.getLayer(populationLayer)) map.removeLayer(populationLayer);
@@ -13,17 +15,15 @@ export function showPopulationGrid(map: Map, grid: PopulationGrid | undefined, v
   canvas.width = width;
   canvas.height = height;
   const context = canvas.getContext('2d')!;
-  const colors = (grid.colors ?? ['2FA9C000', 'F4CF4DE6', 'D5463CFF']).map((hex) =>
-    [0, 2, 4, 6].map((i) => parseInt(hex.slice(i, i + 2), 16)));
   const bitmap = context.createImageData(width, height);
   for (let row = 0; row < height; row++) {
     for (let col = 0; col < width; col++) {
       const v = values[(height - 1 - row) * width + col] / 255;
       const pixel = (row * width + col) * 4;
       if (!v) continue;
-      const low = v < 0.5 ? 0 : 1;
-      const blend = v * 2 - low;
-      for (let i = 0; i < 4; i++) bitmap.data[pixel + i] = colors[low][i] * (1 - blend) + colors[low + 1][i] * blend;
+      // A single blue ramp keeps the lowest populated cells lighter than the densest ones.
+      for (let i = 0; i < 3; i++) bitmap.data[pixel + i] = lowDensity[i] + (highDensity[i] - lowDensity[i]) * v;
+      bitmap.data[pixel + 3] = 255 * (0.18 + 0.82 * Math.sqrt(v));
     }
   }
   context.putImageData(bitmap, 0, 0);
