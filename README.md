@@ -1,71 +1,31 @@
-# Skyline Map
+# Skyline Map for Cities: Skylines II
 
-**Google Maps for your Cities: Skylines city.** Open a [CSLMapView](https://steamcommunity.com/sharedfiles/filedetails/?id=845665815) export in the browser and get a real map with search, directions, an automatic metro map, travel-time maps and, if you add your save file, live traffic and city stats.
+An unofficial adaptation of [hjun1052/skyline-map](https://github.com/hjun1052/skyline-map), licensed under the [GNU Affero General Public License v3.0](LICENSE). The original map viewer and design are credited to hjun1052 and contributors.
 
-**[Open the app →](https://skyline.codz.me)** · **[Try the sample city →](https://skyline.codz.me/?sample)**
+## Open a city
 
-[![CI](https://github.com/hjun1052/skyline-map/actions/workflows/ci.yml/badge.svg)](https://github.com/hjun1052/skyline-map/actions/workflows/ci.yml)
-[![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-blue.svg)](LICENSE)
+1. Install and enable [gansaku's CS2MapView exporter](https://github.com/gansaku/CS2MapView/releases).
+2. Load your city in Cities: Skylines II and export it from the mod's options.
+3. Choose or drop the original `.cs2map` file. The app reads the map locally in your browser.
 
-![Skyline Map showing a city with transit lines, stations and terrain](public/showcase/d-hero-1600.webp)
+File import accepts only `.cs2map` exports in CS2MapView 0.1.1's format. The original project's built-in sample is available from its own button. The map includes search, directions, and a transit schematic with exported stop names. Driving routes estimate speeds and lane directions where the export lacks them. Maps exported with the SkylineMapBusinesses extension can also include company names, activities, addresses, and fares.
 
-## What it does
+## Run locally
 
-- **A real map:** roads at their true width, buildings and lots, water, forests, terrain and labels, in Default, Terrain and Night styles, with 3D buildings.
-- **Search and info panels:** stations, districts, roads, buildings and lines.
-- **Directions:** by car, transit, walking and bike, with alternatives, turn-by-turn steps, transfers, tolls and fares.
-- **Navigation simulation:** drive a car route virtually with a tilted follow camera, turn-by-turn banner, optional voice guidance (English, Korean, Russian) and playback controls. With a matched save: traffic colours on the route, "+N min" callouts on sustained traffic, and the traffic lights and stop/yield signs facing you at each junction.
-- **Transit map:** a metro-style schematic drawn automatically from your lines.
-- **How far can I get?** Areas reachable in 15, 30, 45 or 60 minutes.
-- **What if it closes?** Close a road, bridge or station and see which trips and lines break.
-- **City time-lapse:** watch the city grow across older exports.
-- **Save file (optional):** load your `.crp` save for traffic, line ridership, land value, noise, crime and pollution. Directions then follow your TM:PE one-ways, speed limits, U-turn bans and lane arrows, with an optional traffic-aware mode. Export it as a small `.skysave` (about 1% of the save's size, with your fares and tolls) to reopen or share it with the same map export.
-- **CSLModernMap exports (experimental):** `.cmm` and `.cmm.gz` files open with the full map, lanes, exact one-way streets and speed limits (including TM:PE limits), the game's district boundaries and directions. Transit paths the file leaves out are rebuilt for ferries and walking tours and marked as estimated; ship and airplane lines aren't drawn. See `docs/research/cmm-format.md`.
-- **Vellum Bridge exports:** `.vellummap` files open as a map, with approximate directions. These files have no lane data, so speeds and one-way streets are estimated from each road's type and every route is labelled approximate. Adding the save (`.crp`) the export was made from brings traffic, ridership, the overlays and city statistics, and routes on the save's real lanes and one-way streets.
-- **English, Korean and Russian** interface, desktop and phone layouts, with metric or imperial units.
+Install dependencies with `npm ci` and run `npm run dev`. Use Node.js 20.19+ or 22.12+ (CI uses Node 24). Run `npm run build` for a production build in `dist/`, or `npm run preview` to serve that build locally.
 
-Everything runs in the browser. Map and save files are read on the visitor's own device and never uploaded. Cities: Skylines 1 only.
+## License and publishing
 
-## Run it locally
+The upstream AGPL-3.0 license permits modifying and redistributing the project under its terms. GitHub's Fork button is optional. You can use a fork to keep the visible upstream connection or publish in a separate repository.
 
-You need Node.js 20.19+ or 22.12+ (CI uses Node 24).
+- Preserve the upstream copyright and license notices and include [LICENSE](LICENSE).
+- Prominently mark the modified version and the date of modification. This edition was modified on 2026-11-21 for native CS2MapView imports, map labels and routing, stop names and fares, and a `.cs2map`-only import interface.
+- When offering the modified app over a network, offer everyone using it access to the complete Corresponding Source for the deployed version under AGPL-3.0 at no charge. For GitHub Pages, the workflow links to the exact source commit. For other hosting, set `VITE_SOURCE_REPOSITORY` and `VITE_SOURCE_REVISION` before building.
+- Check the applicable permissions for any separately licensed assets you add. Exclude private game exports, saves and local configuration.
 
-```bash
-git clone https://github.com/hjun1052/skyline-map.git
-cd skyline-map
-npm ci
-npm run dev
-```
+## GitHub Pages
 
-Open the address Vite prints and click **Try the sample city**, or choose or drop your own `.cslmap` file.
-
-The dev server also lists the exports in your CSLMapView folder on the start screen. On macOS it looks in `~/Library/Application Support/Steam/steamapps/common/Cities_Skylines/CSLMapView`; set `CSLMAP_DIR=/path/to/folder` to use another folder.
-
-| Command | What it does |
-|---|---|
-| `npm run dev` | Dev server with hot reload |
-| `npm run build` | Type check and production build into `dist/` |
-| `npm run preview` | Serve the production build |
-| `npm run check` | Geometry, transit-time, pricing and file-finder self-checks |
-| `npm run check:i18n` | Fails if any UI string has no Korean translation |
-| `npm run check:data` | Runs 11 data checks (routing, transit, tolls, districts, reach…) on the sample city |
-| `npm run check:<name> [files…]` | Runs one data check on your own exports (see [docs/architecture.md](docs/architecture.md)) |
-| `npm run check:sim` | Save-file checks; needs real saves and exports on your computer, so it doesn't run in CI |
-
-## Project layout
-
-| Path | What's there |
-|---|---|
-| `src/` | The app. Parsing, map building and routing run in a Web Worker (`worker.ts`, `build.ts`, `router.ts`); the page handles the map and UI (`main.ts` and the `*-ui.ts` files) |
-| `src/sim/` | Readers for game saves (`.crp`) and TM:PE data |
-| `tools/` | Check scripts and the blog generator |
-| `docs/` | How features work ([architecture.md](docs/architecture.md)), save-file data ([sim-data.md](docs/sim-data.md)) and research notes |
-| `public/` | Static files: icons, fonts, showcase screenshots and the sample city |
-| `blog/`, `showcase.html`, `privacy.html` | Extra pages built alongside the app |
-
-## Contributing
-
-Bug reports, ideas and pull requests are welcome ([open an issue](https://github.com/hjun1052/skyline-map/issues/new/choose)). Read [CONTRIBUTING.md](CONTRIBUTING.md) first: it covers setup, the checks to run, translations and how reviews work. To report a security problem, follow [SECURITY.md](SECURITY.md) instead of opening an issue.
+In the repository containing this website's source, choose **Settings → Pages → GitHub Actions**. Run **Deploy to GitHub Pages** from **Actions**. The workflow builds the site with its Pages base path and links to the source commit. Visitors select their own map files in the browser.
 
 ## Credits
 
@@ -76,7 +36,3 @@ Bug reports, ideas and pull requests are welcome ([open an issue](https://github
 - Russian translation by [craftersmine](https://github.com/craftersmine).
 
 Cities: Skylines is a trademark of Paradox Interactive. This project is not affiliated with Paradox Interactive or Colossal Order.
-
-## License
-
-[GNU Affero General Public License v3.0](LICENSE). You may use, change and share the code. If you run a modified version as a public website, you must publish your source code under the same license.

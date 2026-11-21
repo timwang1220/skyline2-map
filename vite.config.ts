@@ -1,23 +1,21 @@
 import { defineConfig, type Plugin } from 'vite';
 import fs from 'node:fs';
 import path from 'node:path';
-import os from 'node:os';
 
-// Folder CSLMapView writes exports to. Override with CSLMAP_DIR=/path npm run dev
 // GitHub stars of the repo, fetched by the deploy workflow (GH_STARS); 0 when unknown (local builds)
 const GH_STARS = Number(process.env.GH_STARS) || 0;
 
-const MAP_DIR = process.env.CSLMAP_DIR ?? path.join(os.homedir(), 'Library/Application Support/Steam/steamapps/common/Cities_Skylines/CSLMapView');
+const MAP_DIR = process.env.CS2MAP_DIR;
 
-/** Serves the local CSLMapView export folder at /api/maps (dev + preview only). */
+/** Serves the configured local CS2MapView export folder at /api/maps (dev + preview only). */
 function localMaps(): Plugin {
   const handler = (req: any, res: any, next: () => void) => {
     const url = new URL(req.url ?? '/', 'http://x');
-    if (!url.pathname.startsWith('/api/maps')) return next();
+    if (!MAP_DIR || !url.pathname.startsWith('/api/maps')) return next();
     const list = () => {
       if (!fs.existsSync(MAP_DIR)) return [];
       return fs.readdirSync(MAP_DIR)
-        .filter((f) => /\.(cslmap(\.gz)?|vellummap)$/i.test(f))
+        .filter((f) => /\.cs2map$/i.test(f))
         .map((f) => { const st = fs.statSync(path.join(MAP_DIR, f)); return { file: f, size: st.size, mtime: st.mtimeMs }; })
         .sort((a, b) => b.mtime - a.mtime);
     };
@@ -68,8 +66,32 @@ function showcaseShots(): Plugin {
   };
 }
 
+/** Vite rewrites bundled assets but leaves plain HTML navigation links alone. */
+function staticNavigation(): Plugin {
+  let base = '/';
+  return {
+    name: 'static-navigation',
+    configResolved(config) { base = config.base; },
+    transformIndexHtml: {
+      order: 'pre',
+      handler(html) {
+          const repository = process.env.VITE_SOURCE_REPOSITORY;
+        const revision = process.env.VITE_SOURCE_REVISION;
+      const url = revision ? `${repository}/tree/${revision}` : repository;
+      const links = url && repository ? html.replaceAll('data-release-source hidden', `data-release-source href="${url}" target="_blank" rel="noopener"`) : html;
+      if (base === '/') return links;
+        return links.replace(/(<a\b[^>]*?\bhref=")\/(?!\/)([^"]*)"/g, (_all, prefix: string, link: string) => {
+          const path = link === 'showcase' || link === 'privacy' ? link + '.html' : link;
+          return prefix + base + path + '"';
+        });
+      },
+    },
+  };
+}
+
 export default defineConfig({
-  plugins: [localMaps(), showcaseShots()],
+  base: process.env.VITE_PAGES_BASE || '/',
+  plugins: [localMaps(), showcaseShots(), staticNavigation()],
   define: { __GH_STARS__: JSON.stringify(GH_STARS) },
   worker: { format: 'es' },
   build: {

@@ -23,6 +23,7 @@ import type { CityData, CNode, CSeg, CBuilding, CArea, CTransport, CSegType, CLa
 import type { LaneCatalog } from './lane-infer';
 import type { OneWayResult } from './oneway';
 import { FormatError, areaAt } from './vellummap';
+import type { Cs2Terrain } from './cs2map';
 
 // i18n-keys: reading errors, shown translated by the page
 void ['This .cmm is damaged: {detail}', 'This .cmm uses format {version}, which Skyline Map does not read yet. It reads cmm-v1.'];
@@ -311,7 +312,7 @@ export interface CmmInfo {
   issues: Record<string, number>;
 }
 
-export async function readCmm(bytes: Uint8Array, cat: LaneCatalog): Promise<CityData> {
+export async function readCmm(bytes: Uint8Array, cat: LaneCatalog, nativeTerrain?: Cs2Terrain): Promise<CityData> {
   const { d, grids } = parseDoc(bytes);
   if (!d || typeof d !== 'object' || Array.isArray(d)) throw damaged('not a JSON object');
   const ver = str(d.schema_version);
@@ -320,10 +321,11 @@ export async function readCmm(bytes: Uint8Array, cat: LaneCatalog): Promise<City
     throw damaged('missing format version');
   }
   if (d.metadata?.origin?.game !== undefined && d.metadata.origin.game !== 'cs1') throw damaged(`a ${str(d.metadata.origin.game)} city, not Cities: Skylines`);
+  const cs2 = d.extensions?.skyline_map_compat?.source_game === 'cs2';
 
   const seaLevel = typeof d.sea_level === 'number' && Number.isFinite(d.sea_level) ? d.sea_level : 0;
-  const height = (await grid(d.terrain?.height, 'terrain height')) ?? new Float32Array(T * T);
-  const water = (await grid(d.terrain?.water_depth, 'water depth')) ?? new Float32Array(T * T);
+  const height = nativeTerrain?.height ?? (await grid(d.terrain?.height, 'terrain height')) ?? new Float32Array(T * T);
+  const water = nativeTerrain?.water ?? (await grid(d.terrain?.water_depth, 'water depth')) ?? new Float32Array(T * T);
   /** terrain height at a point (nearest sample), for things the file places in 2D. The samples are 16 m apart, corner to
    *  corner (17280 m / 1080), as for a .cslmap (build.ts makeTerrainSampler): the file's `cell` (17280 / 1081) is not their spacing */
   const ground = (x: number, z: number) => { const i = Math.round((x + 8640) / 16), j = Math.round((z + 8640) / 16); return i >= 0 && j >= 0 && i < T && j < T ? height[j * T + i] : 0; };
@@ -405,6 +407,7 @@ export async function readCmm(bytes: Uint8Array, cat: LaneCatalog): Promise<City
     const path = isLeg ? list(w, 'path_segment_ids', where).map((x) => realId(sid(x, where))).filter((x): x is number => x !== null) : [];
     const seg: CSeg = { id, sn: sid(w.start_id, where), en: sid(w.end_id, where), icls: str(w.source_raw), width: typeof w.width === 'number' && w.width > 0 ? w.width : 8,
       name: str(w.name), customName: (str(w.display_name) || str(w.game_name)).trim(), pts, path: isLeg ? (path.length ? path : null) : null };
+    if (cs2 && typeof w.pedestrian_access === 'boolean') seg.pedestrianAccess = w.pedestrian_access;
     segs.push(seg);
     if (isLeg) legs.push({ seg, kind: w.kind === 'STOP_LINE' ? str(w.transit_for) : 'TOUR' });
     // a node's service is its own network's: dams (car lanes, but an electricity building) and power lines are
@@ -435,20 +438,35 @@ export async function readCmm(bytes: Uint8Array, cat: LaneCatalog): Promise<City
 
   // transit lines: stops are line nodes, in route order (one route per line, from its first stop)
   const stopNode = new Map<number, number>();
-  for (const s of list(d, 'stops', 'file')) stopNode.set(sid(s?.id, 'stop'), sid(s.network_node_id, `stop ${s.id}`));
+  const stopInfo: NonNullable<CityData['extras']>['stopInfo'] = new Map();
+  for (const s of list(d, 'stops', 'file')) {
+    const node = sid(s.network_node_id, `stop ${s.id}`);
+    stopNode.set(sid(s?.id, 'stop'), node);
+    const name = nativeTerrain ? str(s.name).trim() : '';
+    if (name) stopInfo.set(node, { name });
+  }
   const routeOf = new Map<number, any>();
   for (const r of list(d, 'routes', 'file')) if (Number.isSafeInteger(r?.line_id) && !routeOf.has(r.line_id)) routeOf.set(r.line_id, r);
   const transports: CTransport[] = list(d, 'transit_lines', 'file').map((l) => {
     const id = sid(l?.id, 'transit line'), c = Array.isArray(l.user_color) ? l.user_color : [255, 255, 255];
     const stops = (routeOf.get(id)?.stop_ids ?? []).map((s: unknown) => stopNode.get(sid(s, `line ${id} stop`))).filter((n: number | undefined): n is number => n !== undefined && nodes.has(n));
-    return { id, name: str(l.name), type: str(l.source_raw) || str(l.kind), color: [c[0] | 0, c[1] | 0, c[2] | 0] as [number, number, number], stops };
+    const fare = nativeTerrain && typeof l.fare === 'number' && Number.isFinite(l.fare) && l.fare >= 0 ? l.fare as number : undefined;
+    return { id, name: str(l.name), type: str(l.source_raw) || str(l.kind), color: [c[0] | 0, c[1] | 0, c[2] | 0] as [number, number, number], stops, fare };
   });
 
   const buildings: CBuilding[] = list(d, 'buildings', 'file').map((b) => {
     const id = sid(b?.id, 'building'), where = `building ${id}`;
     const fp = list(b, 'footprint', where).map((p) => xz(p, where));
     const y = typeof b.base_elevation_m === 'number' && Number.isFinite(b.base_elevation_m) ? b.base_elevation_m : fp.length ? ground(fp[0][0], fp[0][1]) : 0;
+    const companies = cs2 && Array.isArray(b.company_names) ? b.company_names.map(str).map((name: string) => name.trim()).filter(Boolean) : [];
+    const companyKind = cs2 && (b.company_kind === 'shop' || b.company_kind === 'industry' || b.company_kind === 'office') ? b.company_kind as CBuilding['companyKind'] : undefined;
+    const houseNumber = cs2 && /^\d+$/.test(str(b.house_number)) ? str(b.house_number) : '';
+    const products = cs2 && b.business_products ? { sells: str(b.business_products.sells), produces: str(b.business_products.produces), stores: str(b.business_products.stores) } : undefined;
+    const exportLabel = cs2 ? str(b.display_name?.text).trim() : undefined;
     return { id, name: str(b.name), myname: b.display_name?.source === 'custom' ? str(b.display_name.text).trim() : '', srv: str(b.service), subsrv: str(b.sub_service), icls: str(b.icls),
+      ...(companies.length ? { companies: [...new Set<string>(companies)] } : {}), companyKind, products, exportLabel,
+      individualName: b.individual_name === true ? exportLabel : undefined,
+      ...(houseNumber ? { address: { number: houseNumber, street: str(b.street_name) } } : {}),
       parent: Number(b.parent_building_id) || 0, sub: Number(b.sub_building_id) || 0, pts: fp.map(([x, z]) => ({ x, y, z })) };
   });
 
@@ -479,7 +497,7 @@ export async function readCmm(bytes: Uint8Array, cat: LaneCatalog): Promise<City
     generated: str(d.metadata?.exported_at).replace(/^(\d{4}-\d\d-\d\d) (\d\d:\d\d:\d\d)$/, '$1T$2'),
     seaLevel, nodes, segs, buildings, segTypes, districts, parks, transports, height, water, terrainSize: T, forest, forestSize,
     extras: {
-      source: 'cmm', caps: { lanes: true, buildingParts: true }, producer: 'CSLModernMap', districtGrid, districtStats: new Map(), stopInfo: new Map(),
+      source: 'cmm', caps: { lanes: true, buildingParts: true }, producer: nativeTerrain ? 'CS2MapView' : 'CSLModernMap', districtGrid, districtStats: new Map(), stopInfo,
       oneway, carSpeed, inferredLegs, factsOnly, cmm: info,
     },
   };

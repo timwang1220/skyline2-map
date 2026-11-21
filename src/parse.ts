@@ -13,18 +13,21 @@ export interface CNode {
 export interface CSeg {
   id: number; sn: number; en: number; icls: string; width: number;
   name: string; customName: string; pts: Vec3[]; path: number[] | null;
+  pedestrianAccess?: boolean;
 }
 
 export interface CBuilding { id: number; name: string; /** name the player gave in game */ myname: string; srv: string; subsrv: string; icls: string;
   /** `prntb`: previous building in the asset's sub-building chain (0 = none); see buildingGroups */ parent: number;
-  /** `subb`: next building in that chain (0 = none) */ sub: number; pts: Vec3[] }
+  /** `subb`: next building in that chain (0 = none) */ sub: number; pts: Vec3[]; companies?: string[]; companyKind?: 'shop' | 'industry' | 'office';
+  address?: { number: string; street: string }; products?: { sells?: string; produces?: string; stores?: string };
+  exportLabel?: string; individualName?: string }
 
 export interface CLane { type: string; vType: string; dir: string; pos: number; width: number; speed: number }
 export interface CSegType { name: string; highway: boolean; lanes: CLane[] }
 
 export interface CArea { id: number; name: string; x: number; y: number; z: number; type?: string }
 
-export interface CTransport { id: number; name: string; type: string; color: [number, number, number]; stops: number[] }
+export interface CTransport { id: number; name: string; type: string; color: [number, number, number]; stops: number[]; fare?: number }
 
 export interface CityData {
   name: string;

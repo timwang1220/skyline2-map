@@ -64,7 +64,7 @@ function fill() {
   if (!el) return;
   const s = TEXT[lang];
   el.lang = lang;
-  el.innerHTML = `<p>${s.msg} <a href="/privacy" target="_blank" rel="noopener">${s.more}</a></p><div><button type="button" class="n">${s.no}</button><button type="button" class="y">${s.yes}</button></div>`;
+  el.innerHTML = `<p>${s.msg} <a href="${import.meta.env.BASE_URL}privacy.html" target="_blank" rel="noopener">${s.more}</a></p><div><button type="button" class="n">${s.no}</button><button type="button" class="y">${s.yes}</button></div>`;
 }
 function show() {
   if (el) return;

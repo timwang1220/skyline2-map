@@ -3,6 +3,7 @@
 import type { CityData, CSeg } from './parse';
 import { classify, laneInfo, modeOf, buildingGroups } from './build';
 import { toLngLat, fromLngLat, pointInRing, distToRing, nearestOnLine, type XY } from './geo';
+import { cs2Junctions, drawCs2RoadPiece } from './cs2-junctions';
 import type { OneWayResult } from './oneway';
 import type { TollData } from './tolls';
 import { laneAccess, hasVehicle, type Access } from './access';
@@ -167,8 +168,10 @@ export class Router {
    *  the road), or null for an ordinary start (see departsAlong) */
   private heading: XY | null = null;
   private edgeOfSeg = new Map<number, number>();
+  private junctions: ReturnType<typeof cs2Junctions>;
 
   constructor(private city: CityData, private stopNames: Map<number, string>, oneway?: OneWayResult, tolls?: TollData) {
+    this.junctions = cs2Junctions(city);
     for (const b of tolls?.booths ?? []) this.booths.set(b.id, { name: b.name, unconfirmed: !!b.unconfirmed, road: b.roads[0] ?? '' });
     const node = (id: number): number => {
       let i = this.nodeIdx.get(id);
@@ -1064,13 +1067,14 @@ export class Router {
   }
   /** A route from oriented edge pieces; `meet` is the junction both ends meet at when there are none. */
   private partsRoute(parts: { ed: Edge; pts: XY[] }[], mode: Mode, from: XY, to: XY, meet?: XY): Route {
-    const first = parts[0]?.pts[0] ?? meet ?? from;
+    const drawn = parts.map((p) => drawCs2RoadPiece(p.pts, this.junctions.get(p.ed.id)));
+    const first = drawn[0]?.[0] ?? meet ?? from;
     const coords: XY[] = [this.endPoint(from, first)];
     if (!parts.length && meet) coords.push(meet);
     let dist = 0, time = 0;
     for (const p of parts) { dist += p.ed.len; time += this.cost(p.ed, mode); }
     const spans: Span[] = [], traffic: TrafficPiece[] = [], controls: { i: number; kind: ControlKind }[] = [];
-    for (const p of parts) {
+    for (const [index, p] of parts.entries()) {
       if (mode === 'drive') {
         const e = p.ed, fwd = this.drivesForward(p);
         // a TM:PE limit on guessed lanes is shown only when both directions agree (which lanes run which way is a guess)
@@ -1081,7 +1085,7 @@ export class Router {
           traffic.push({ i: coords.length, pct: split ? e.tpd![fwd ? 0 : 1] : e.tp ?? -1, split, seg: e.id, delay: tf > 1 ? c - c / tf : 0 });
         }
       }
-      coords.push(...p.pts);
+      coords.push(...drawn[index]);
       // the junction at the end of this piece, when the route drives on through it: what control faces the car there
       if (mode === 'drive' && this.controls.size && p !== parts[parts.length - 1]) {
         const e = p.ed, end = p.pts[p.pts.length - 1], d = (n: number) => Math.hypot(this.pos[n][0] - end[0], this.pos[n][1] - end[1]);
@@ -1208,9 +1212,10 @@ export class Router {
         const last = i === states.length - 1;
         const endJoin = (last ? TJ : this.stopWalk.get(stopAt(states[i + 1])) ?? []).find((x) => x.node === states[i])?.part;
         if (endJoin && endJoin.len > 0.5) { const r = rev(endJoin); parts.push({ ed: r, pts: r.pts }); }
-        const tip = parts.length ? parts[parts.length - 1].pts.at(-1)! : this.pos[states[i]];
+        const drawn = parts.map((p) => drawCs2RoadPiece(p.pts, this.junctions.get(p.ed.id)));
+        const tip = drawn.at(-1)?.at(-1) ?? this.pos[states[i]];
         const end: XY = last ? this.endPoint(to, tip) : this.stopPos.get(stopAt(states[i + 1])) ?? tip;
-        const coords = [i0 === 0 ? this.endPoint(from, parts[0]?.pts[0] ?? walkStart) : walkStart, ...parts.flatMap((p) => p.pts), end];
+        const coords = [i0 === 0 ? this.endPoint(from, drawn[0]?.[0] ?? walkStart) : walkStart, ...drawn.flat(), end];
         const d = parts.reduce((a, p) => a + p.ed.len, 0);
         if (d > 5) legs.push({ kind: 'walk', dist: d, time: d / WALK, coords: coords.map((p) => toLngLat(p[0], p[1])), steps: turnSteps(parts, 'walk', (ed) => ed.len / WALK) });
         i++;

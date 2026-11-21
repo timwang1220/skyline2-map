@@ -16,6 +16,7 @@ import { loadSim, transferables, type SimData } from './sim';
 import { isSkysave, loadSkysave, makeSkysave } from './skysave';
 import { readVellummap, vellumToCity, vellumIdentities, isZip, FormatError } from './vellummap';
 import { isCmm, cmmIdentities, readCmm } from './cmm';
+import type { Cs2Terrain } from './cs2map';
 
 let router: Router | null = null;
 let closures: ReturnType<typeof createClosures> | null = null;
@@ -49,10 +50,10 @@ async function gunzip(buf: ArrayBuffer): Promise<Uint8Array> {
 }
 const laneCatalog = async () => { const m = await import('./lane-catalog.json'); return (m.default ?? m) as unknown as LaneCatalog; };
 /** open any format: a zip is a .vellummap, cmm JSON a .cmm (CSLModernMap), anything else is read as .cslmap XML */
-async function readCity(buf: ArrayBuffer, p: (s: string) => void): Promise<CityData> {
+async function readCity(buf: ArrayBuffer, p: (s: string) => void, nativeTerrain?: Cs2Terrain): Promise<CityData> {
   const bytes = await gunzip(buf);
   if (isZip(bytes)) { p('Reading nodes'); return vellumToCity(await readVellummap(bytes)); }
-  if (isCmm(bytes)) { p('Reading nodes'); return readCmm(bytes, await laneCatalog()); }
+  if (isCmm(bytes)) { p('Reading nodes'); return readCmm(bytes, await laneCatalog(), nativeTerrain); }
   return parseCity(new TextDecoder('utf-8').decode(bytes), p);
 }
 
@@ -67,7 +68,7 @@ self.onmessage = async (e: MessageEvent) => {
       void ['Decoding file', 'Preparing directions', 'Finding discoveries', 'Rendering'];
       // end i18n-keys
       const p = (s: string) => progress(s, 8 + (steps.indexOf(s) + 1) * 8.5);
-      const city = await readCity(msg.buffer, p);
+      const city = await readCity(msg.buffer, p, msg.nativeTerrain);
       lastHeight = { h: city.height, size: city.terrainSize };
       lastCity = city; history = null; vellumCtx = null; lastSim = null;
       // a .cmm states each one-way direction exactly; other formats infer them (oneway.ts)

@@ -5,7 +5,7 @@
 // One entry per city and file format: a newer export of the same city in the same format replaces the older one (and
 // keeps its save only when it is the very same export), while a .cslmap and a .vellummap of one city are separate.
 
-export type MapFormat = 'cslmap' | 'vellummap' | 'cmm';
+export type MapFormat = 'cslmap' | 'vellummap' | 'cmm' | 'cs2map';
 
 export interface Recent {
   id: string; // `${format}:${name}`, see recentId
@@ -54,7 +54,7 @@ async function req<T>(mode: IDBTransactionMode, fn: (s: IDBObjectStore) => IDBRe
 
 async function gzipped(b: Blob): Promise<Blob> {
   const h = new Uint8Array(await b.slice(0, 2).arrayBuffer());
-  if (h[0] === 0x1f && h[1] === 0x8b) return b;
+  if ((h[0] === 0x1f && h[1] === 0x8b) || (h[0] === 0x50 && h[1] === 0x4b)) return b;
   return new Response(b.stream().pipeThrough(new CompressionStream('gzip'))).blob();
 }
 
@@ -76,7 +76,7 @@ async function rememberMapNow(format: MapFormat, name: string, file: string, gen
   try {
     const id = recentId(format, name);
     const old = (await req('readonly', (s) => s.get(id))) as Recent | undefined;
-    const same = !!old && old.generated === generated;
+    const same = !!old && old.generated === generated && (format !== 'cs2map' || (!!generated && old.file === file && old.map.size === map.size));
     const rec: Recent = { id, format, name, file, generated, opened: Date.now(), map: same ? old!.map : await gzipped(map), save: same ? old!.save : undefined };
     await req('readwrite', (s) => s.put(rec));
     for (const r of (await listNow()).slice(KEEP)) await forgetNow(r.id);

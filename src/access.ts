@@ -35,10 +35,10 @@ const RACE = /Racetrack|Race ?Track|Raceway/i;
 /** vType lists vehicles comma-separated ("Car, Tram"); match whole names so "CableCar" is not a car */
 export const hasVehicle = (vType: string, name: string) => vType.split(',').some((v) => v.trim() === name);
 
-export function laneAccess(seg: Pick<CSeg, 'name' | 'icls'>, st: CSegType | undefined): Access {
+export function laneAccess(seg: Pick<CSeg, 'name' | 'icls' | 'pedestrianAccess'>, st: CSegType | undefined): Access {
   const lanes = st?.lanes ?? [];
   const has = (t: RegExp, v?: RegExp) => lanes.some((l) => t.test(l.type) && (!v || v.test(l.vType)));
-  const ped = has(/Pedestrian/);
+  const ped = seg.pedestrianAccess ?? has(/Pedestrian/);
   const bikeLane = lanes.some((l) => hasVehicle(l.vType, 'Bicycle'));
   const carGeneral = lanes.some((l) => l.type === 'Vehicle' && hasVehicle(l.vType, 'Car'));
   const carTransit = lanes.some((l) => l.type === 'TransportVehicle' && hasVehicle(l.vType, 'Car'));

@@ -330,6 +330,11 @@ export function buildStyle(o: StyleOptions, fontBase: string): StyleSpecificatio
       },
     } as LayerSpecification,
     {
+      id: 'business-address', type: 'symbol', source: 'places', filter: ['==', ['get', 'kind'], 'business-address'], minzoom: 17,
+      layout: { visibility: lbl, 'text-field': ['get', 'name'], 'text-font': font('SemiBold'), 'text-size': 12, 'text-padding': 3 },
+      paint: { 'text-color': p.text, 'text-halo-color': p.halo, 'text-halo-width': 2 },
+    } as LayerSpecification,
+    {
       id: 'park-label', type: 'symbol', source: 'places', filter: ['all', ['==', ['get', 'kind'], 'park'], ['any', ['<=', ['get', 'rank'], 1], ['>=', ['zoom'], 13]]], minzoom: 11,
       layout: {
         visibility: lbl, 'icon-image': ['concat', 'poi-', ['get', 'poi']], 'icon-size': ['interpolate', ['linear'], ['zoom'], 11, 0.75, 15, 1],

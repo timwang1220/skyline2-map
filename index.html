@@ -3,18 +3,16 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <title>Skyline Map: Cities: Skylines map viewer for CSLMapView</title>
-  <meta name="description" content="Turn your Cities: Skylines CSLMapView export into an interactive map with real driving and transit directions and an automatic transit map. Free, in your browser." />
-  <link rel="canonical" href="https://skyline.codz.me/" />
+  <title>Skyline Map: Cities: Skylines II map viewer for CS2MapView</title>
+  <meta name="description" content="Open a Cities: Skylines II .cs2map export for an interactive map, directions and a transit map in your browser." />
   <meta name="theme-color" content="#1a73e8" />
   <meta name="color-scheme" content="light" />
   <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
   <link rel="manifest" href="/manifest.webmanifest" />
   <meta property="og:type" content="website" />
   <meta property="og:site_name" content="Skyline Map" />
-  <meta property="og:title" content="Skyline Map: Cities: Skylines map viewer for CSLMapView" />
-  <meta property="og:description" content="Turn your Cities: Skylines CSLMapView export into an interactive map with real driving and transit directions and an automatic transit map. Free, in your browser." />
-  <meta property="og:url" content="https://skyline.codz.me/" />
+  <meta property="og:title" content="Skyline Map: Cities: Skylines II map viewer for CS2MapView" />
+  <meta property="og:description" content="Open a Cities: Skylines II .cs2map export for an interactive map, directions and a transit map in your browser." />
   <meta property="og:image" content="https://skyline.codz.me/og-image.jpg" />
   <meta property="og:image:width" content="1200" />
   <meta property="og:image:height" content="630" />
@@ -22,10 +20,9 @@
   <meta property="og:locale" content="en_US" />
   <meta property="og:locale:alternate" content="ko_KR" />
   <meta name="twitter:card" content="summary_large_image" />
-  <meta name="twitter:title" content="Skyline Map: Cities: Skylines map viewer for CSLMapView" />
-  <meta name="twitter:description" content="Turn your Cities: Skylines CSLMapView export into an interactive map with real driving and transit directions and an automatic transit map. Free, in your browser." />
+  <meta name="twitter:title" content="Skyline Map: Cities: Skylines II map viewer for CS2MapView" />
+  <meta name="twitter:description" content="Open a Cities: Skylines II .cs2map export for an interactive map, directions and a transit map in your browser." />
   <meta name="twitter:image" content="https://skyline.codz.me/og-image.jpg" />
-  <script type="application/ld+json">{"@context": "https://schema.org", "@type": "WebApplication", "@id": "https://skyline.codz.me/#app", "name": "Skyline Map", "url": "https://skyline.codz.me/", "description": "A cartographic viewer for Cities: Skylines CSLMapView exports: detailed interactive maps with driving, walking, cycling and transit directions, automatic schematic transit maps and toll-aware routing.", "applicationCategory": "UtilitiesApplication", "operatingSystem": "Any (web browser)", "browserRequirements": "Requires JavaScript and WebGL", "inLanguage": ["en", "ko"], "isAccessibleForFree": true, "offers": {"@type": "Offer", "price": "0", "priceCurrency": "USD"}, "image": "https://skyline.codz.me/og-image.jpg", "screenshot": ["https://skyline.codz.me/showcase/d-hero-1600.webp", "https://skyline.codz.me/showcase/d-3d-buildings-1600.webp", "https://skyline.codz.me/showcase/d-schem-1600.webp"], "featureList": ["Opens .cslmap and .cslmap.gz files from the CSLMapView mod", "Default, Terrain and Night map styles with 3D buildings and 3D terrain", "Driving, walking, cycling and public transit directions", "Automatic schematic transit map", "Toll detection, toll fees and Avoid tolls", "Transit fares, transfer rules and currency settings", "Travel-time map: everywhere reachable in 15 to 60 minutes", "City time-lapse from older exports", "City discoveries: records measured from the export", "Closure analysis: what happens if a road, bridge, railway or station closes", "English and Korean interface"]}</script>
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='%231a73e8' d='M16 2C10.5 2 6 6.4 6 11.9 6 19.3 16 30 16 30s10-10.7 10-18.1C26 6.4 21.5 2 16 2z'/%3E%3Ccircle cx='16' cy='12' r='4' fill='white'/%3E%3C/svg%3E" />
 </head>
 <body>
@@ -77,15 +74,16 @@
         <button class="menu-item" id="exportPng"><svg viewBox="0 0 24 24"><path d="M19 12v7H5v-7H3v7a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7h-2zm-6 .7 2.6-2.6L17 11.5 12 16.5l-5-5 1.4-1.4 2.6 2.6V3h2v9.7z"/></svg><span data-i18n="Export view as PNG">Export view as PNG</span></button>
         <button class="menu-item" id="schemBtn"><svg viewBox="0 0 24 24"><path d="M5 4a2 2 0 1 0 0 4 2 2 0 0 0 0-4zm14 0a2 2 0 1 0 0 4 2 2 0 0 0 0-4zM5 16a2 2 0 1 0 0 4 2 2 0 0 0 0-4zm14 0a2 2 0 1 0 0 4 2 2 0 0 0 0-4zM6 7.5V16h2V9.4l7.3 7.3 1.4-1.4L9.4 8H18V6H6z"/></svg><span data-i18n="Transit map">Transit map</span></button>
         <button class="menu-item" id="discoverMenu"><svg viewBox="0 0 24 24"><path d="M12 2l2.1 6.6L21 11l-6.9 2.4L12 20l-2.1-6.6L3 11l6.9-2.4zm7 13 .9 2.1 2.1.9-2.1.9L19 22l-.9-2.1L16 19l2.1-.9z"/></svg><span data-i18n="City discoveries">City discoveries</span></button>
-        <button class="menu-item" id="simMenu"><svg viewBox="0 0 24 24"><path d="M3 3h2v16h16v2H3zm4 11 3.5-4 3 2.5L18 7l1.5 1.3-6 6.9-3-2.5L8.5 15.3z"/></svg><span data-i18n="Simulation data (.crp)">Simulation data (.crp)</span></button>
+        <button class="menu-item" id="simMenu" hidden><svg viewBox="0 0 24 24"><path d="M3 3h2v16h16v2H3zm4 11 3.5-4 3 2.5L18 7l1.5 1.3-6 6.9-3-2.5L8.5 15.3z"/></svg><span data-i18n="Simulation data (.crp)">Simulation data (.crp)</span></button>
         <button class="menu-item" id="closureMenu"><svg viewBox="0 0 24 24"><path fill-rule="evenodd" d="M4 9h16v6H4zm2 1.6v2.8h2.2l2.8-2.8zm6.2 0-2.8 2.8h3.6l2.8-2.8zm5.4 0-2.8 2.8H18v-2.8zM6 16h2v4H6zm10 0h2v4h-2zM6 4h2v4H6zm10 0h2v4h-2z"/></svg><span data-i18n="What if it closes?">What if it closes?</span></button>
         <button class="menu-item" id="reachBtn"><svg viewBox="0 0 24 24"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm0 18a8 8 0 1 1 0-16 8 8 0 0 1 0 16zm0-13a5 5 0 1 0 0 10 5 5 0 0 0 0-10zm0 8a3 3 0 1 1 0-6 3 3 0 0 1 0 6z"/></svg><span data-i18n="How far can I get?">How far can I get?</span></button>
-        <button class="menu-item" id="timelapseBtn"><svg viewBox="0 0 24 24"><path d="M13 3a9 9 0 0 0-9 9H1l3.9 3.9.1.1L9 12H6a7 7 0 1 1 2.1 5l-1.4 1.4A9 9 0 1 0 13 3zm-1 5v5l4.3 2.5.7-1.2-3.5-2.1V8z"/></svg><span data-i18n="City time-lapse">City time-lapse</span></button>
+        <button class="menu-item" id="timelapseBtn" hidden><svg viewBox="0 0 24 24"><path d="M13 3a9 9 0 0 0-9 9H1l3.9 3.9.1.1L9 12H6a7 7 0 1 1 2.1 5l-1.4 1.4A9 9 0 1 0 13 3zm-1 5v5l4.3 2.5.7-1.2-3.5-2.1V8z"/></svg><span data-i18n="City time-lapse">City time-lapse</span></button>
         <button class="menu-item" id="pricingBtn"><svg viewBox="0 0 24 24"><path d="M21.4 11.6l-9-9A2 2 0 0 0 11 2H4a2 2 0 0 0-2 2v7c0 .6.2 1.1.6 1.4l9 9c.4.4.9.6 1.4.6s1-.2 1.4-.6l7-7c.4-.4.6-.9.6-1.4s-.2-1-.6-1.4zM5.5 7a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3z"/></svg><span data-i18n="Tolls, fares &amp; currency">Tolls, fares &amp; currency</span></button>
-        <a class="menu-item" id="tourLink" href="/showcase"><svg viewBox="0 0 24 24"><path d="M12 3 2 8l10 5 8-4v6h2V8L12 3zm-6 9.2V16c0 1.7 2.7 3 6 3s6-1.3 6-3v-3.8l-6 3-6-3z"/></svg><span data-i18n="Product tour">Product tour</span></a>
+        <a class="menu-item" id="tourLink" hidden href="/showcase"><svg viewBox="0 0 24 24"><path d="M12 3 2 8l10 5 8-4v6h2V8L12 3zm-6 9.2V16c0 1.7 2.7 3 6 3s6-1.3 6-3v-3.8l-6 3-6-3z"/></svg><span data-i18n="Product tour">Product tour</span></a>
         <a class="menu-item" id="coffeeLink" href="https://buymeacoffee.com/hjun1052" target="_blank" rel="noopener"><svg viewBox="0 0 24 24"><path d="M18 8h-1V7a1 1 0 0 0-1-1H4a1 1 0 0 0-1 1v7a6 6 0 0 0 6 6h2a6 6 0 0 0 5.7-4H18a4 4 0 0 0 0-8zm0 6h-1.1c.1-.3.1-.7.1-1v-3h1a2 2 0 0 1 0 4zM6 2h2v3H6zm4 0h2v3h-2zm4 0h2v3h-2z"/></svg><span data-i18n="Buy me a coffee">Buy me a coffee</span></a>
-        <a class="menu-item" id="githubLink" href="https://github.com/hjun1052/skyline-map" target="_blank" rel="noopener"><svg viewBox="0 0 24 24"><path d="M12 2C6.5 2 2 6.6 2 12.2c0 4.5 2.9 8.3 6.8 9.6.5.1.7-.2.7-.5v-1.7c-2.8.6-3.4-1.4-3.4-1.4-.5-1.2-1.1-1.5-1.1-1.5-.9-.6.1-.6.1-.6 1 .1 1.5 1 1.5 1 .9 1.6 2.4 1.1 2.9.9.1-.7.4-1.1.6-1.4-2.2-.3-4.6-1.1-4.6-5 0-1.1.4-2 1-2.7-.1-.3-.4-1.3.1-2.7 0 0 .8-.3 2.8 1a9.5 9.5 0 0 1 5 0c1.9-1.3 2.8-1 2.8-1 .5 1.4.2 2.4.1 2.7.6.7 1 1.6 1 2.7 0 3.9-2.4 4.7-4.6 5 .4.3.7.9.7 1.9v2.8c0 .3.2.6.7.5A10.2 10.2 0 0 0 22 12.2C22 6.6 17.5 2 12 2z"/></svg><span data-i18n="Source code on GitHub">Source code on GitHub</span></a>
-        <a class="menu-item" id="issuesLink" href="https://github.com/hjun1052/skyline-map/issues/new/choose" target="_blank" rel="noopener"><svg viewBox="0 0 24 24"><path d="M20 2H4a2 2 0 0 0-2 2v18l4-4h14a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2zm0 14H5.2L4 17.2V4h16v12zM11 12h2v2h-2zm0-6h2v4h-2z"/></svg><span data-i18n="Report a bug or suggest an idea">Report a bug or suggest an idea</span></a>
+        <a class="menu-item" id="githubLink" href="https://github.com/hjun1052/skyline-map" target="_blank" rel="noopener"><svg viewBox="0 0 24 24"><path d="M12 2C6.5 2 2 6.6 2 12.2c0 4.5 2.9 8.3 6.8 9.6.5.1.7-.2.7-.5v-1.7c-2.8.6-3.4-1.4-3.4-1.4-.5-1.2-1.1-1.5-1.1-1.5-.9-.6.1-.6.1-.6 1 .1 1.5 1 1.5 1 .9 1.6 2.4 1.1 2.9.9.1-.7.4-1.1.6-1.4-2.2-.3-4.6-1.1-4.6-5 0-1.1.4-2 1-2.7-.1-.3-.4-1.3.1-2.7 0 0 .8-.3 2.8 1a9.5 9.5 0 0 1 5 0c1.9-1.3 2.8-1 2.8-1 .5 1.4.2 2.4.1 2.7.6.7 1 1.6 1 2.7 0 3.9-2.4 4.7-4.6 5 .4.3.7.9.7 1.9v2.8c0 .3.2.6.7.5A10.2 10.2 0 0 0 22 12.2C22 6.6 17.5 2 12 2z"/></svg><span data-i18n="Original project on GitHub">Original project on GitHub</span></a>
+        <a class="menu-item" data-release-source hidden data-i18n="Source code for this version">Source code for this version</a>
+        <a class="menu-item" id="issuesLink" hidden href="https://github.com/hjun1052/skyline-map/issues/new/choose" target="_blank" rel="noopener"><svg viewBox="0 0 24 24"><path d="M20 2H4a2 2 0 0 0-2 2v18l4-4h14a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2zm0 14H5.2L4 17.2V4h16v12zM11 12h2v2h-2zm0-6h2v4h-2z"/></svg><span data-i18n="Report a bug or suggest an idea">Report a bug or suggest an idea</span></a>
         <button class="menu-item" data-consent><svg viewBox="0 0 24 24"><path d="M21.9 11.2a3 3 0 0 1-3.6-2.9 3 3 0 0 1-3.6-3.6A2 2 0 0 1 13 2.1 10 10 0 1 0 21.9 11.2zM8 9.5a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3zm-1 6a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3zm6 3a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3zm3-5a1 1 0 1 1 0-2 1 1 0 0 1 0 2z"/></svg><span data-i18n="Cookie settings">Cookie settings</span></button>
         <button class="menu-item" id="fitCity"><svg viewBox="0 0 24 24"><path d="M5 15H3v4a2 2 0 0 0 2 2h4v-2H5v-4zM5 5h4V3H5a2 2 0 0 0-2 2v4h2V5zm14-2h-4v2h4v4h2V5a2 2 0 0 0-2-2zm0 16h-4v2h4a2 2 0 0 0 2-2v-4h-2v4zM12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8z"/></svg><span data-i18n="Show whole city">Show whole city</span></button>
       </section>
@@ -120,7 +118,7 @@
       <label class="switch-row"><input type="checkbox" id="optLabels" checked /> <span data-i18n="Labels">Labels</span></label>
       <label class="switch-row"><input type="checkbox" id="opt3dTerrain" /> <span data-i18n="3D terrain">3D terrain</span></label>
       <label class="switch-row"><input type="checkbox" id="optNeutral" /> <span data-i18n="Neutral road colours">Neutral road colours</span></label>
-      <label class="switch-row" id="optTrafficRow"><input type="checkbox" id="optTraffic" /> <span><span data-i18n="Traffic">Traffic</span><span class="switch-hint" id="optTrafficHint" data-i18n="From a save: add one in Simulation data">From a save: add one in Simulation data</span></span></label>
+      <label class="switch-row" id="optTrafficRow" hidden><input type="checkbox" id="optTraffic" /> <span><span data-i18n="Traffic">Traffic</span><span class="switch-hint" id="optTrafficHint" data-i18n="From a save: add one in Simulation data">From a save: add one in Simulation data</span></span></label>
       <div class="traffic-mode" id="optTrafficMode" hidden>
         <div class="mode-switch" role="radiogroup" aria-label="Traffic display" data-i18n-aria="Traffic display">
           <button type="button" role="radio" data-tmode="combined" data-i18n="Combined">Combined</button>
@@ -151,7 +149,7 @@
         <div class="start-top-right">
           <button type="button" class="start-back" id="startBack" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 12H5"/><path d="M11 6l-6 6 6 6"/></svg><span data-i18n="Back to the map">Back to the map</span></button>
           <div class="lang-switch" role="radiogroup" aria-label="Language"></div>
-          <a class="start-gh" id="startGithub" href="https://github.com/hjun1052/skyline-map" target="_blank" rel="noopener" aria-label="Source code on GitHub" title="Source code on GitHub" data-i18n-aria="Source code on GitHub" data-i18n-title="Source code on GitHub"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2C6.5 2 2 6.6 2 12.2c0 4.5 2.9 8.3 6.8 9.6.5.1.7-.2.7-.5v-1.7c-2.8.6-3.4-1.4-3.4-1.4-.5-1.2-1.1-1.5-1.1-1.5-.9-.6.1-.6.1-.6 1 .1 1.5 1 1.5 1 .9 1.6 2.4 1.1 2.9.9.1-.7.4-1.1.6-1.4-2.2-.3-4.6-1.1-4.6-5 0-1.1.4-2 1-2.7-.1-.3-.4-1.3.1-2.7 0 0 .8-.3 2.8 1a9.5 9.5 0 0 1 5 0c1.9-1.3 2.8-1 2.8-1 .5 1.4.2 2.4.1 2.7.6.7 1 1.6 1 2.7 0 3.9-2.4 4.7-4.6 5 .4.3.7.9.7 1.9v2.8c0 .3.2.6.7.5A10.2 10.2 0 0 0 22 12.2C22 6.6 17.5 2 12 2z"/></svg><span class="start-gh-n" hidden></span></a>
+          <a class="start-gh" id="startGithub" href="https://github.com/hjun1052/skyline-map" target="_blank" rel="noopener" aria-label="Original project on GitHub" title="Original project on GitHub" data-i18n-aria="Original project on GitHub" data-i18n-title="Original project on GitHub"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2C6.5 2 2 6.6 2 12.2c0 4.5 2.9 8.3 6.8 9.6.5.1.7-.2.7-.5v-1.7c-2.8.6-3.4-1.4-3.4-1.4-.5-1.2-1.1-1.5-1.1-1.5-.9-.6.1-.6.1-.6 1 .1 1.5 1 1.5 1 .9 1.6 2.4 1.1 2.9.9.1-.7.4-1.1.6-1.4-2.2-.3-4.6-1.1-4.6-5 0-1.1.4-2 1-2.7-.1-.3-.4-1.3.1-2.7 0 0 .8-.3 2.8 1a9.5 9.5 0 0 1 5 0c1.9-1.3 2.8-1 2.8-1 .5 1.4.2 2.4.1 2.7.6.7 1 1.6 1 2.7 0 3.9-2.4 4.7-4.6 5 .4.3.7.9.7 1.9v2.8c0 .3.2.6.7.5A10.2 10.2 0 0 0 22 12.2C22 6.6 17.5 2 12 2z"/></svg><span class="start-gh-n" hidden></span></a>
         </div>
       </header>
 
@@ -165,21 +163,21 @@
 
           <div class="start-copy">
             <h2 class="start-title" data-i18n="Open your city as a real map">Open your city as a real map</h2>
-            <p class="start-lede" data-i18n="Drop in a CSLMapView export from Cities: Skylines and get search, directions, a metro map and more, right in your browser. Your file never leaves your computer.">Drop in a CSLMapView export from Cities: Skylines and get search, directions, a metro map and more, right in your browser. Your file never leaves your computer.</p>
+            <p class="start-lede" data-i18n="Open a .cs2map export from Cities: Skylines II. Your map stays in your browser.">Open a .cs2map export from Cities: Skylines II. Your map stays in your browser.</p>
             <div class="start-actions">
               <div class="start-buttons">
                 <label class="start-btn primary" id="dropzone">
-                  <input type="file" id="fileInput" class="start-file" />
+                  <input type="file" id="fileInput" class="start-file" accept=".cs2map" />
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20h16"/><path d="M12 15V4"/><path d="M7 9l5-5 5 5"/></svg>
-                  <span data-i18n="Choose a .cslmap file">Choose a .cslmap file</span>
+                  <span data-i18n="Choose a .cs2map file">Choose a .cs2map file</span>
                 </label>
                 <button class="start-btn ghost" id="sampleBtn" type="button">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 21h18"/><path d="M5 21V9l5-3v15"/><path d="M10 21V4l9 4v13"/><path d="M14 10h2M14 14h2"/></svg>
-                  <span data-i18n="Try the sample city">Try the sample city</span>
+                  <span data-i18n="Try the original sample city">Try the original sample city</span>
                 </button>
               </div>
-              <p class="start-hint"><span data-i18n="or drop it anywhere on this page">or drop it anywhere on this page</span> <span class="start-formats" data-i18n="(.cslmap, .cslmap.gz, .vellummap or .cmm.gz)">(.cslmap, .cslmap.gz, .vellummap or .cmm.gz)</span></p>
-              <a class="start-guide" href="#needFile"><span data-i18n="No .cslmap file yet? Here's how to get one">No .cslmap file yet? Here's how to get one</span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14"/><path d="M6 13l6 6 6-6"/></svg></a>
+              <p class="start-hint"><span data-i18n="or drop it anywhere on this page">or drop it anywhere on this page</span> <span class="start-formats">(.cs2map)</span></p>
+              <a class="start-guide" href="#needFile"><span data-i18n="How to export a .cs2map file">How to export a .cs2map file</span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14"/><path d="M6 13l6 6 6-6"/></svg></a>
             </div>
             <div id="recentMaps" hidden></div>
           </div>
@@ -195,38 +193,29 @@
 
         <section class="need-file" id="needFile" aria-labelledby="needFileTitle">
           <h2 id="needFileTitle" data-i18n="Need your file?">Need your file?</h2>
-          <p class="need-sub" data-i18n="Skyline Map reads the .cslmap file the CSLMapView mod writes from your city.">Skyline Map reads the .cslmap file the CSLMapView mod writes from your city.</p>
+          <p class="need-sub" data-i18n="This edition opens .cs2map files exported by CS2MapView.">This edition opens .cs2map files exported by CS2MapView.</p>
           <div class="need-cols">
             <div>
               <span class="need-n" aria-hidden="true">1</span>
               <h3 data-i18n="Export it from the game">Export it from the game</h3>
               <ol class="need-steps">
-                <li data-i18n="Subscribe to CSLMapView on the Steam Workshop and enable it in Content Manager.">Subscribe to CSLMapView on the Steam Workshop and enable it in Content Manager.</li>
+                <li data-i18n="Install and enable the CS2MapView exporter.">Install and enable the CS2MapView exporter.</li>
                 <li data-i18n="Load your city, open the mod's options and press Export.">Load your city, open the mod's options and press Export.</li>
-                <li data-i18n="Optional: turn on exporting every time you save, so the newest file is always there.">Optional: turn on exporting every time you save, so the newest file is always there.</li>
               </ol>
-              <a class="start-guide" href="/blog/cities-skylines-city-map.html" target="_blank" rel="noopener" data-i18n="Read the full guide">Read the full guide</a>
+              <a class="start-guide" href="https://github.com/gansaku/CS2MapView/releases" target="_blank" rel="noopener">CS2MapView Releases</a>
             </div>
             <div>
               <span class="need-n" aria-hidden="true">2</span>
               <h3 data-i18n="Find it on your computer">Find it on your computer</h3>
-              <section id="findFile" class="find-file" aria-label="Where is my file?" data-i18n-aria="Where is my file?">
-                <p class="ff-lede">CSLMapView saves your exports in the CSLMapView folder of your Cities: Skylines install:</p>
-                <ul class="ff-static">
-                  <li>macOS: <code>~/Library/Application Support/Steam/steamapps/common/Cities_Skylines/CSLMapView</code></li>
-                  <li>Windows: <code>C:\Program Files (x86)\Steam\steamapps\common\Cities_Skylines\CSLMapView</code></li>
-                  <li>Linux: <code>~/.local/share/Steam/steamapps/common/Cities_Skylines/CSLMapView</code></li>
-                </ul>
-              </section>
+              <p data-i18n="Choose the .cs2map file that CS2MapView exported.">Choose the .cs2map file that CS2MapView exported.</p>
             </div>
           </div>
         </section>
       </main>
 
       <footer class="start-foot">
-        <a href="/showcase" data-i18n="Product tour">Product tour</a>
-        <a href="/blog/" data-i18n="Guides">Guides</a>
-        <a href="https://github.com/hjun1052/skyline-map" target="_blank" rel="noopener" data-i18n="Open source on GitHub">Open source on GitHub</a>
+        <span><span data-i18n="Cities: Skylines II adaptation of">Cities: Skylines II adaptation of</span> <a href="https://github.com/hjun1052/skyline-map" target="_blank" rel="noopener">hjun1052/skyline-map</a> · AGPL-3.0 · 2026-11-21</span>
+        <a data-release-source hidden data-i18n="Source code for this version">Source code for this version</a>
         <span class="start-private" data-i18n="Runs in your browser. Map files are never uploaded.">Runs in your browser. Map files are never uploaded.</span>
       </footer>
     </div>

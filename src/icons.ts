@@ -11,6 +11,8 @@ const GLYPHS: Record<string, (c: CanvasRenderingContext2D) => void> = {
   mountain: (c) => { c.beginPath(); c.moveTo(3.5, 18.5); c.lineTo(9.5, 8); c.lineTo(13, 13.5); c.lineTo(15.5, 10.5); c.lineTo(20.5, 18.5); c.closePath(); c.fill(); },
   plane: (c) => { c.beginPath(); c.moveTo(12, 3.8); c.quadraticCurveTo(13.4, 4.2, 13.4, 7); c.lineTo(13.4, 10.2); c.lineTo(20, 14); c.lineTo(20, 15.8); c.lineTo(13.4, 13.6); c.lineTo(13.4, 17.2); c.lineTo(15.4, 18.8); c.lineTo(15.4, 20.2); c.lineTo(12, 19.2); c.lineTo(8.6, 20.2); c.lineTo(8.6, 18.8); c.lineTo(10.6, 17.2); c.lineTo(10.6, 13.6); c.lineTo(4, 15.8); c.lineTo(4, 14); c.lineTo(10.6, 10.2); c.lineTo(10.6, 7); c.quadraticCurveTo(10.6, 4.2, 12, 3.8); c.fill(); },
   factory: (c) => { c.beginPath(); c.moveTo(4.5, 19); c.lineTo(4.5, 10); c.lineTo(9, 13); c.lineTo(9, 10); c.lineTo(13.5, 13); c.lineTo(13.5, 6); c.lineTo(17, 6); c.lineTo(17, 13); c.lineTo(19.5, 13); c.lineTo(19.5, 19); c.closePath(); c.fill(); },
+  bag: (c) => { c.fillRect(6, 9, 12, 10); c.lineWidth = 1.5; c.beginPath(); c.arc(12, 9, 3, Math.PI, 0); c.stroke(); },
+  office: (c) => { for (const y of [6, 10, 14, 18]) for (const x of [8, 12, 16]) c.fillRect(x - 1, y - 1, 2, 2); },
   ball: (c) => { c.lineWidth = 1.8; c.beginPath(); c.arc(12, 12, 6.2, 0, Math.PI * 2); c.stroke(); c.beginPath(); c.moveTo(5.8, 12); c.lineTo(18.2, 12); c.moveTo(12, 5.8); c.quadraticCurveTo(8, 12, 12, 18.2); c.moveTo(12, 5.8); c.quadraticCurveTo(16, 12, 12, 18.2); c.stroke(); },
   train: (c) => { rr(c, 7, 4.5, 10, 12, 2.5); c.fill(); c.fillStyle = 'rgba(0,0,0,.28)'; c.fillRect(8.6, 6.5, 6.8, 4); c.fillStyle = '#fff'; c.beginPath(); c.moveTo(8.5, 17); c.lineTo(6.5, 20); c.lineTo(8.3, 20); c.lineTo(10, 17.5); c.moveTo(15.5, 17); c.lineTo(17.5, 20); c.lineTo(15.7, 20); c.lineTo(14, 17.5); c.fill(); },
   metro: (c) => { c.font = 'bold 13px Pretendard, system-ui, sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText('M', 12, 12.8); },
@@ -23,6 +25,7 @@ const GLYPHS: Record<string, (c: CanvasRenderingContext2D) => void> = {
   // toll booth: kiosk with a barrier arm
   toll: (c) => { c.fillRect(4.5, 7, 6, 11); c.fillStyle = 'rgba(0,0,0,.3)'; c.fillRect(6, 9, 3, 3); c.fillStyle = '#fff'; c.fillRect(10.5, 10, 9.5, 2.2); c.fillRect(18.5, 9, 1.5, 9); },
   dot: (c) => { c.beginPath(); c.arc(12, 12, 3.5, 0, Math.PI * 2); c.fill(); },
+  parking: (c) => { c.font = 'bold 15px sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText('P', 12, 12.8); },
 };
 
 function rr(c: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
@@ -42,9 +45,12 @@ export const POI_STYLE: Record<string, { color: string; glyph: string; square?: 
   amusement: { color: '#34a05a', glyph: 'star' },
   zoo: { color: '#34a05a', glyph: 'tree' },
   sports: { color: '#34a05a', glyph: 'ball' },
+  parking: { color: '#3e6aaa', glyph: 'parking' },
   cemetery: { color: '#6f8f74', glyph: 'cemetery' },
   airport: { color: '#4a83e6', glyph: 'plane' },
   industry: { color: '#7c8088', glyph: 'factory' },
+  shop: { color: '#336cbb', glyph: 'bag' },
+  office: { color: '#7661a5', glyph: 'office' },
   train: { color: '#4f5d73', glyph: 'train', square: true },
   metro: { color: '#2f6fe0', glyph: 'metro', square: true },
   monorail: { color: '#2f6fe0', glyph: 'train', square: true },

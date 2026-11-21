@@ -19,8 +19,8 @@ const modeLabel = (m: string) => (MODE_LABEL[m] ? t(MODE_LABEL[m]) : m);
 const MODE_ORDER = ['train', 'metro', 'monorail', 'tram', 'bus', 'ferry', 'cablecar', 'other'];
 
 export interface Booth extends TollRef { road: string; unconfirmed: boolean }
-export interface CityLine extends LineRef { color: string }
-export type Source = 'own' | 'default' | null;
+export interface CityLine extends LineRef { color: string; fare?: number }
+export type Source = 'own' | 'export' | 'default' | null;
 export interface TollCost { total: number; missing: number; fees: { booth: number; name: string; fee: number | null; source: Source }[] }
 export interface FareCost extends FareResult { rides: { name: string; color: string; mode: string; km: number; source: Source }[] }
 
@@ -74,10 +74,13 @@ export function createContextStore() {
         const p = f.properties as any, [x, z] = fromLngLat(...((f.geometry as any).coordinates as [number, number]));
         return { id: +p.id, name: p.named ? String(p.name) : '', x, z, road: String(p.roads || '').split(' · ')[0] || String(p.roadTypes || '').split(' · ')[0] || '', unconfirmed: !!p.unconfirmed };
       });
-      lines = city.meta.lines.filter((l) => l.type !== 'tour' && l.type !== 'air').map((l) => ({ id: l.id, name: l.name, mode: l.type, color: l.color }));
+      lines = city.meta.lines.filter((l) => l.type !== 'tour' && l.type !== 'air').map((l) => ({ id: l.id, name: l.name, mode: l.type, color: l.color, fare: l.fare }));
       const saved = await loadContext(city.meta.name);
       if (id !== attachId) return; // another city opened meanwhile
       ctx = saved ? sanitizeContext(saved, city.meta.name) : emptyContext(city.meta.name);
+      if (!saved && city.meta.source?.producer === 'CS2MapView') {
+        ctx.currency = { code: 'CS2', symbol: '¢', decimals: 0, position: 'before', space: false };
+      }
       reindex(); emit();
     },
 
@@ -103,6 +106,7 @@ export function createContextStore() {
       const i = lineIdx.get(line);
       if (ctx && i !== undefined) return { rule: ctx.fares[i].rule, source: 'own' };
       const l = lines.find((x) => x.id === line);
+      if (l?.fare !== undefined) return { rule: { base: l.fare, includedKm: 0, tiers: [] }, source: 'export' };
       const d = l && ctx?.fareDefaults[l.mode];
       return d ? { rule: d, source: 'default' } : { rule: null, source: null };
     },
@@ -279,7 +283,7 @@ export function createContextEditor(store: ContextStore, hooks: { flyTo: (x: num
           ${st.editing === dk ? ruleEditor(dk, st.draft!, def ? t('Remove default') : '') : ''}
           ${ls.map((l) => {
             const k = 'line:' + l.id, r = store.lineRule(l.id);
-            return `<div class="ctx-row fare-row" id="ctx-line-${l.id}"><div><span class="bullet" style="background:${l.color}"></span><b>${esc(l.name)}</b><div class="small">${r.source === 'own' ? fareTxt(r.rule) : r.source === 'default' ? `<span class="muted">${t('Uses the default')}</span>` : `<span class="muted">${t('Not set')}</span>`}</div></div>${st.editing === k ? '' : `<button class="pill" data-edit="${k}">${r.source === 'own' ? t('Edit') : t('Custom fare')}</button>`}</div>
+            return `<div class="ctx-row fare-row" id="ctx-line-${l.id}"><div><span class="bullet" style="background:${l.color}"></span><b>${esc(l.name)}</b><div class="small">${r.source === 'own' ? fareTxt(r.rule) : r.source === 'export' ? `${fareTxt(r.rule)} <span class="muted">${t('From game')}</span>` : r.source === 'default' ? `<span class="muted">${t('Uses the default')}</span>` : `<span class="muted">${t('Not set')}</span>`}</div></div>${st.editing === k ? '' : `<button class="pill" data-edit="${k}">${r.source === 'own' ? t('Edit') : t('Custom fare')}</button>`}</div>
               ${st.editing === k ? ruleEditor(k, st.draft!, r.source === 'own' ? (def ? t('Use default') : t('Remove fare')) : '') : ''}`;
           }).join('')}</div>`;
       }).join('')}${orphanNote()}`;

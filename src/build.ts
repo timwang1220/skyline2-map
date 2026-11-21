@@ -5,6 +5,7 @@ import type { OneWayResult } from './oneway';
 import { boothLabel, type TollData } from './tolls';
 import { areaAt } from './vellummap';
 import { HALF, MAP_SIZE, XY, pointInRing, distToRing, toLngLat, isolines, assemblePolygons, chaikin, simplify, blur, mergeChains, polylineLength } from './geo';
+import { cs2Junctions, drawCs2RoadPiece } from './cs2-junctions';
 
 type Props = Record<string, string | number | boolean | null>;
 interface Feature { type: 'Feature'; id?: number; properties: Props; geometry: { type: string; coordinates: unknown } }
@@ -20,7 +21,7 @@ export interface BuiltCity {
     source?: { format: 'vellummap' | 'cmm'; producer: string; lanes: boolean; exactDistricts: boolean; /** routing runs on estimated lanes: every route is approximate */ approxRoutes?: boolean };
     stats: Record<string, number>;
     elevation: { min: number; max: number };
-    lines: { id: number; name: string; type: string; color: string; stops: number; bbox: [number, number, number, number] | null; stopNames?: string[]; shape?: 'both' | 'loop'; /** part of the path is rebuilt from the network, not exported (.cmm) */ estimated?: true }[];
+    lines: { id: number; name: string; type: string; color: string; stops: number; bbox: [number, number, number, number] | null; stopNames?: string[]; fare?: number; shape?: 'both' | 'loop'; /** part of the path is rebuilt from the network, not exported (.cmm) */ estimated?: true }[];
   };
   sources: Record<string, FC>;
   dem: { surface: Float32Array; size: number };
@@ -129,6 +130,8 @@ interface BCat { cat: string; poi: string | null; height: number; inset: number 
 
 function buildingCategory(b: CBuilding, area: number): BCat | null {
   const nm = b.name, srv = b.srv, sub = b.subsrv, ic = b.icls;
+  if (b.exportLabel !== undefined && /Ruins(?:OldMill|OldCemetery|Castle|StoneHeadFormation)/i.test(nm))
+    return { cat: 'landmark', poi: 'landmark', height: /Castle|Mill/i.test(nm) ? 10 : 0, inset: 0.82 };
   if (/(?<!Concourse )Node Building|invisible|Underground Cable|cable_Data|powerpole|Pillar|pylon|Connection|Boulder|Rock |Ruins|Fence|_anim|Decoration|Taxi Stand|Pole|Marker|Spawn|Dummy|Placeholder|Track$/i.test(nm)) return null;
   // pipe junctions (e.g. Snowfall's "Heating Pipe Junction") are network nodes exported as buildings
   if (/Airplane Path|Ship Path|Metro Track|Train Track|Pipe/i.test(ic)) return null;
@@ -152,12 +155,20 @@ function buildingCategory(b: CBuilding, area: number): BCat | null {
       return { cat: 'health', poi: 'hospital', height: /Hospital|Medical Center/i.test(nm) ? 32 : 10, inset: 0.7 };
     case 'PoliceDepartment': return { cat: 'civic', poi: /Prison/i.test(ic + nm) ? 'prison' : 'police', height: 12, inset: 0.7 };
     case 'FireDepartment': return { cat: 'civic', poi: 'fire', height: 10, inset: 0.72 };
+    case 'Civic': return { cat: 'civic', poi: 'landmark', height: 10, inset: 0.75 };
+    case 'Parking': return { cat: 'transport', poi: 'parking', height: /Garage|Underground|Tower/i.test(nm) ? 12 : 0, inset: 0.75 };
     case 'Monument': return { cat: 'landmark', poi: /\bsub\b|sub[_ ]|fence|glass|light|corner|wing|ground_|deco/i.test(nm) ? null : 'landmark', height: 30, inset: 0.82 };
     case 'PublicTransport':
       if (/Taxi|Pit|Hangar|Fuel|Lounge|Depot/i.test(nm)) return { cat: 'transport', poi: null, height: 9, inset: 0.82 };
       if (/Plane|Airport|Terminal/i.test(ic + nm) && area > 2000) return { cat: 'transport', poi: null, height: 18, inset: 0.86 };
       return { cat: 'transport', poi: null, height: 12, inset: 0.82 };
     case 'Beautification':
+      if (b.exportLabel !== undefined) {
+        const pool = /Pool|Swimming|Aquatic|泳/i.test(nm + b.exportLabel);
+        if (pool || /Basketball|Tennis|Football|Soccer|Court|Skate|Gym|Fitness|Sport|球场|滑板|健身/i.test(nm + b.exportLabel))
+          return { cat: 'sports', poi: 'sports', height: pool ? 8 : 0, inset: 0.7 };
+        return { cat: 'park_building', poi: 'park', height: 0, inset: 1 };
+      }
       if (sub.includes('Parks')) return { cat: 'park_building', poi: null, height: 4, inset: 0.8 };
       if (/Plaza|Square|Park|Garden|Fountain|Pavilion|Lawn/i.test(nm) && area > 200) return { cat: 'plaza', poi: null, height: 0, inset: 1 };
       return null;
@@ -338,6 +349,7 @@ export function buildCity(city: CityData, progress: (msg: string) => void = () =
   const concourses: CSeg[] = [];
   const nodeClass = new Map<number, { rank: number; cls: string }>();
   const inherit: Props[] = [];
+  const junctions = cs2Junctions(city);
 
   for (const seg of city.segs) {
     segById.set(seg.id, seg);
@@ -369,8 +381,8 @@ export function buildCity(city: CityData, progress: (msg: string) => void = () =
     if (city.extras && c.cls === 'cablecar') brunnel = '';
     const avgY = seg.pts.reduce((s, p) => s + p.y, 0) / seg.pts.length;
 
-    const coords = seg.pts.map(ll);
     const pts2: XY[] = seg.pts.map((p) => [p.x, p.z]);
+    const coords = drawCs2RoadPiece(pts2, junctions.get(seg.id)).map(llxy);
     const wl = estLanes ?? lanes;
     let w = wl.span > 0 ? Math.min(seg.width, wl.span + 0.6) : seg.width * 0.62;
     if (c.group === 'path') w = c.cls === 'pedestrian' ? Math.max(6, seg.width * 0.7) : Math.min(4, Math.max(2, seg.width * 0.45));
@@ -468,6 +480,9 @@ export function buildCity(city: CityData, progress: (msg: string) => void = () =
   const namedStations: { name: string; x: number; z: number; mode: string; modes: Set<string>; rings: XY[][]; used?: boolean }[] = [];
   const byId = new Map(city.buildings.map((b) => [b.id, b]));
   const groupHead = buildingGroups(city.buildings);
+  for (const [id, head] of groupHead) {
+    if (byId.get(id)?.exportLabel !== undefined && /Placeholder/i.test(byId.get(head)?.name ?? '')) groupHead.delete(id);
+  }
   const groupSize = new Map<number, number>();
   for (const h of groupHead.values()) groupSize.set(h, (groupSize.get(h) ?? 1) + 1);
   const areaOf = (p: XY[]) => { let a = 0; for (let i = 0, j = p.length - 1; i < p.length; j = i++) a += (p[j][0] - p[i][0]) * (p[j][1] + p[i][1]); return Math.abs(a / 2); };
@@ -490,10 +505,32 @@ export function buildCity(city: CityData, progress: (msg: string) => void = () =
       const hc = buildingCategory(head, headRing ? areaOf(headRing) : area);
       cat = inside >= 0.75 || !hc ? null : hc;
     }
+    const cx = p2.reduce((s, p) => s + p[0], 0) / p2.length, cz = p2.reduce((s, p) => s + p[1], 0) / p2.length;
+    const business = b.companyKind ?? (b.srv === 'Commercial' ? 'shop' : b.srv === 'Industrial' ? 'industry' : b.srv === 'Office' ? 'office' : null);
+    const companyIsChosenName = !!b.companies?.includes(b.myname);
+    const companies = b.companies?.join(' · ') ?? '';
+    const addressLabel = b.address ? (/\p{Script=Han}/u.test(b.address.street)
+      ? b.address.street + b.address.number + '号' : [b.address.street, b.address.number].filter(Boolean).join(' ')) : '';
+    const addressOnly = !companies && !b.myname && !b.individualName && !!addressLabel && (business !== null || b.srv === 'Residential');
+    const businessInfo: Props = { ...(companies ? { companies } : {}),
+      ...(b.address ? { houseNumber: b.address.number, street: b.address.street, addressLabel } : {}),
+      ...(b.products?.sells ? { sells: b.products.sells } : {}),
+      ...(b.products?.produces ? { produces: b.products.produces } : {}),
+      ...(b.products?.stores ? { stores: b.products.stores } : {}) };
+    if (business && b.companies?.length) {
+      const center = toLngLat(cx, cz);
+      places.push({ type: 'Feature', properties: { ...businessInfo, kind: 'poi', poi: business, name: companies,
+        rank: companyIsChosenName ? 4 : 6, area: Math.round(area) }, geometry: { type: 'Point', coordinates: center } });
+      for (const name of b.companies) search.push({ name, kind: 'poi', sub: business, center, zoom: 17 });
+    } else if (addressOnly && !head) {
+      const center = toLngLat(cx, cz);
+      places.push({ type: 'Feature', properties: { ...businessInfo, kind: 'business-address', name: addressLabel, area: Math.round(area) },
+        geometry: { type: 'Point', coordinates: center } });
+      search.push({ name: addressLabel, kind: 'poi', sub: 'address', center, zoom: 18 });
+    }
     if (!cat) { bump('bld:skipped'); continue; }
     bump('bld:' + cat.cat);
     if (head) bump('bld:part');
-    const cx = p2.reduce((s, p) => s + p[0], 0) / p2.length, cz = p2.reduce((s, p) => s + p[1], 0) / p2.length;
     for (const p of p2) urbanMarks.push(p);
     urbanMarks.push([cx, cz]);
     const ring = [...p2, p2[0]];
@@ -501,9 +538,10 @@ export function buildCity(city: CityData, progress: (msg: string) => void = () =
     const ordered = ccw ? ring : [...ring].reverse();
     const asset = cleanName(b.name);
     // parts are labelled as their asset: the player's name for it, else the main building's asset name
-    const nm = b.myname || head?.myname || (head ? cleanName(head.name) : asset);
+    const nm = b.myname || head?.myname || b.individualName || (addressOnly ? addressLabel : undefined) ||
+      (head ? cleanName(head.name) : cat.poi && b.exportLabel ? b.exportLabel : asset);
     const gid = headId ?? b.id;
-    const base = { id: b.id, cat: cat.cat, name: nm, asset, named: b.myname || head?.myname ? 1 : 0, srv: b.srv, icls: b.icls, area: Math.round(area), district: districtAt(cx, cz), part: head ? 1 : 0, grp: gid, nparts: groupSize.get(gid) ?? 1 };
+    const base = { ...businessInfo, id: b.id, cat: cat.cat, name: nm, asset, named: b.myname || head?.myname ? 1 : 0, srv: b.srv, icls: b.icls, area: Math.round(area), district: districtAt(cx, cz), part: head ? 1 : 0, grp: gid, nparts: groupSize.get(gid) ?? 1 };
     lots.push({ type: 'Feature', id: b.id, properties: base, geometry: { type: 'Polygon', coordinates: [ordered.map(llxy)] } });
     if (cat.inset < 1 && cat.height > 0) {
       const r = rnd(gid); // one height factor per asset, so its parts read as one building
@@ -514,11 +552,11 @@ export function buildCity(city: CityData, progress: (msg: string) => void = () =
     }
     // stations the player named are attached to the transit markers below
     if (b.myname && stMode && !head) continue;
-    if (head) continue; // parts never get their own place label
+    if (head || addressOnly || (business && companyIsChosenName)) continue; // parts never repeat asset labels
     // toll booths get their own marker (tolls section); don't also label them as a named landmark
     const poi = /Toll Booth/i.test(b.name) ? null : cat.poi ?? (b.myname ? (b.subsrv.includes('Bus') ? 'bus' : 'landmark') : null);
     if (poi && nm.length > 1 && (b.myname || !(poi === 'landmark' && isJunkName(nm)))) {
-      if (poiSeen.some((p) => p.name === nm && Math.hypot(p.x - cx, p.z - cz) < 250)) continue;
+      if (b.exportLabel === undefined && poiSeen.some((p) => p.name === nm && Math.hypot(p.x - cx, p.z - cz) < 250)) continue;
       poiSeen.push({ name: nm, x: cx, z: cz, poi, area });
       let rank = poi === 'hospital' && cat.height > 20 ? 3 : poi === 'landmark' ? (area > 8000 ? 4 : 5) : poi === 'school' && /University/i.test(b.icls) ? 4 : 6;
       if (b.myname) rank = Math.min(rank, 4); // names the player chose get shown early
@@ -643,7 +681,8 @@ export function buildCity(city: CityData, progress: (msg: string) => void = () =
     }
     const valid = bb[0] !== Infinity;
     const sw = valid ? toLngLat(bb[0], bb[1]) : null, ne = valid ? toLngLat(bb[2], bb[3]) : null;
-    lines.push({ id: tr.id, name: tr.name, type: mode, color, stops: tr.stops.length, bbox: sw && ne ? [sw[0], sw[1], ne[0], ne[1]] : null, ...(estOnly.has(tr.id) ? { estimated: true } : {}) });
+    lines.push({ id: tr.id, name: tr.name, type: mode, color, stops: tr.stops.length, bbox: sw && ne ? [sw[0], sw[1], ne[0], ne[1]] : null,
+      ...(tr.fare !== undefined ? { fare: tr.fare } : {}), ...(estOnly.has(tr.id) ? { estimated: true } : {}) });
     if (sw && ne) search.push({ name: tr.name, kind: 'line', sub: mode, center: toLngLat((bb[0] + bb[2]) / 2, (bb[1] + bb[3]) / 2), zoom: 13, bbox: [sw[0], sw[1], ne[0], ne[1]] });
   }
 
@@ -657,7 +696,9 @@ export function buildCity(city: CityData, progress: (msg: string) => void = () =
   const stopName = new Map<number, string>();
   const stopStation = new Map<number, (typeof stations)[number]>();
   const byName = new Map<string, (typeof stations)[number]>();
-  const busStops: { x: number; z: number; lines: Set<number> }[] = [];
+  const busStops: { x: number; z: number; lines: Set<number>; name: string }[] = [];
+  const busStopOf = new Map<number, (typeof busStops)[number]>();
+  const exportedStopName = (sid: number) => city.extras?.producer === 'CS2MapView' ? city.extras.stopInfo.get(sid)?.name ?? '' : '';
   /** a station stop's station from the file itself: its building id, and its name when the file gives one */
   const fileStation = (sid: number) => {
     const s = city.extras?.stopInfo.get(sid);
@@ -670,23 +711,35 @@ export function buildCity(city: CityData, progress: (msg: string) => void = () =
     for (const sid of tr.stops) {
       const n = city.nodes.get(sid);
       if (!n) continue;
+      const exportedName = exportedStopName(sid);
+      if (exportedName) stopName.set(sid, exportedName);
       if (mode === 'bus' || mode === 'tour' || mode === 'air') {
         if (mode !== 'bus') continue;
-        const c = busStops.find((c) => Math.hypot(c.x - n.x, c.z - n.z) < 40);
-        if (c) c.lines.add(tr.id); else busStops.push({ x: n.x, z: n.z, lines: new Set([tr.id]) });
+        let c = busStops.find((c) => c.name === exportedName && Math.hypot(c.x - n.x, c.z - n.z) < 40);
+        if (!c) { c = { x: n.x, z: n.z, name: exportedName, lines: new Set() }; busStops.push(c); }
+        c.lines.add(tr.id);
+        busStopOf.set(sid, c);
         continue;
       }
       // nearest station footprint; a building of another mode (a train hall over a metro stop) or a plain
       // part of the asset counts as a little farther, so the stop's own station wins a near tie
       let best: (typeof namedStations)[number] | null = null, bd = mode === 'ferry' ? 220 : 150;
       for (const r of stationRings) {
+        if (exportedName && r.ns.name !== exportedName) continue;
         if (r.mode ? family(r.mode) !== family(mode) : ![...r.ns.modes].some((m) => family(m) === family(mode))) continue;
         if (Math.abs(r.ring[0][0] - n.x) > bd + 600 || Math.abs(r.ring[0][1] - n.z) > bd + 600) continue;
         const d = distToRing([n.x, n.z], r.ring) + (r.mode === mode ? 0 : r.mode ? 15 : 30);
         if (d < bd) { bd = d; best = r.ns; }
       }
       let st: (typeof stations)[number] | undefined;
-      if (best) {
+      if (exportedName) {
+        if (best) best.used = true;
+        st = stations.find((c) => c.name === exportedName && Math.hypot(c.x - n.x, c.z - n.z) < 180);
+        if (!st) {
+          st = { x: best?.x ?? n.x, z: best?.z ?? n.z, name: exportedName, lines: new Set(), modes: new Set() };
+          stations.push(st);
+        }
+      } else if (best) {
         best.used = true;
         stopName.set(sid, best.name);
         st = byName.get(best.name);
@@ -737,7 +790,9 @@ export function buildCity(city: CityData, progress: (msg: string) => void = () =
   }
   for (const b of busStops) {
     const lines = [...b.lines].map((id) => trById.get(id)!.name).join(' · ');
-    places.push({ type: 'Feature', properties: { kind: 'busstop', poi: 'bus', name: lines, lines, rank: 8 }, geometry: { type: 'Point', coordinates: toLngLat(b.x, b.z) } });
+    const center = toLngLat(b.x, b.z);
+    places.push({ type: 'Feature', properties: { kind: 'busstop', poi: 'bus', name: b.name || lines, stopName: b.name, lines, rank: 8 }, geometry: { type: 'Point', coordinates: center } });
+    if (b.name) search.push({ name: b.name, kind: 'station', sub: 'bus', center, zoom: 17 });
   }
   stats.stations = stations.length; stats.busStops = busStops.length;
 
@@ -754,9 +809,10 @@ export function buildCity(city: CityData, progress: (msg: string) => void = () =
       if (!n) continue;
       if (mode === 'bus') {
         // a bus stop beside a station is that station (a transfer); otherwise its own stop cluster
-        const near = stations.find((st) => st.lines.size && Math.hypot(st.x - n.x, st.z - n.z) < 90);
-        const c = near ?? busStops.find((c) => Math.hypot(c.x - n.x, c.z - n.z) < 40);
-        seq.push(c ? sid(c, c.x, c.z, near?.name ?? '') : sid({}, n.x, n.z, ''));
+        const name = exportedStopName(stop);
+        const near = stations.find((st) => st.lines.size && (!name || st.name === name) && Math.hypot(st.x - n.x, st.z - n.z) < 90);
+        const c = near ?? busStopOf.get(stop);
+        seq.push(c ? sid(c, c.x, c.z, c.name) : sid({}, n.x, n.z, name));
       } else {
         const st = stopStation.get(stop);
         seq.push(st ? sid(st, st.x, st.z, st.name) : sid({}, n.x, n.z, ''));

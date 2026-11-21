@@ -3,7 +3,7 @@
 import type { SchemLayout, SLine, SStation, Pt } from './schematic';
 import { renderSchematic, CELL, linePath, lineWidth, textOn } from './schematic-render';
 import type { Route } from './router';
-import type { ContextStore } from './context-ui';
+import { describeRule, type ContextStore } from './context-ui';
 import { iconDataUrl } from './icons';
 import { toLngLat } from './geo';
 import { bottomSheet, isPhone } from './sheet';
@@ -240,7 +240,10 @@ export function createSchematic(d: SchemDeps) {
     const names = l.route.map((sid) => S.get(sid)).filter((x): x is SStation => !!x);
     const ends = l.loop ? t('Circular line') : `${esc(names[0]?.name || '?')} ↔ ${esc(names[names.length - 1]?.name || '?')}`;
     const stops = l.loop ? names.slice(0, -1) : names;
+    const fare = d.pricing.lineRule(l.id);
+    const price = fare.rule ? esc(describeRule(fare.rule, d.pricing.currency())) : esc(t('Not set'));
     showCard(`<div class="smc-head">${linePill(l, true)}<div class="smc-sub">${esc(t(MODE_NAMES[l.mode] ?? l.mode))} · ${tn(stops.length, '{n} stop', '{n} stops')} · ${ends}</div></div>
+      <div class="smc-sub">${esc(t('Fare'))} · ${price}${fare.source === 'export' ? ` · ${esc(t('From game'))}` : ''}</div>
       <div class="smc-actions"><button class="pill" data-map-line="${l.id}">${svgI(ICON.pin)}${t('Show on map')}</button></div>
       <ol class="smc-stops" style="--c:${l.color}">${stops.map((s) => `<li><button data-station="${s.id}">${esc(s.name || t('Unnamed stop'))}</button></li>`).join('')}</ol>`);
     applySelection();

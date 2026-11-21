@@ -22,7 +22,6 @@ import { createSchematic } from './schematic-view';
 import { createContextStore, createContextEditor, moneyField, parseMoney, describeRule } from './context-ui';
 import { bottomSheet, isPhone } from './sheet';
 import { mouseScrollRows } from './hscroll';
-import { mountFindFile } from './findfile';
 import { listRecent, rememberMap, rememberSave, forget, recentId, type Recent, type MapFormat } from './recent';
 import { loadContext, saveContext, sanitizeContext, type CityContext } from './context';
 import { showDistrictGlow, clearDistrictGlow } from './district-glow';
@@ -110,12 +109,13 @@ void ["Rendered from a Vellum Bridge export. Map data © the city's mayor. Fonts
 // end i18n-keys
 /** the map corner credits the mod that exported the open map (CSLMapView before one is open) */
 let attribution: maplibregl.AttributionControl | null = null;
-function creditExporter(exporter: 'CSLMapView' | 'Vellum Bridge' | 'CSLModernMap') {
+function creditExporter(exporter: 'CSLMapView' | 'Vellum Bridge' | 'CSLModernMap' | 'CS2MapView') {
   if (attribution) map.removeControl(attribution);
   attribution = new maplibregl.AttributionControl({ compact: true, customAttribution: `Cities: Skylines · ${exporter}` });
   map.addControl(attribution, 'bottom-right');
   const about = document.querySelector<HTMLElement>('#about [data-i18n]')!;
-  about.dataset.i18n = about.dataset.i18nSrc = exporter === 'CSLMapView' ? "Rendered from CSLMapView exports. Map data © the city's mayor. Fonts: Pretendard (OFL)."
+  about.dataset.i18n = about.dataset.i18nSrc = exporter === 'CS2MapView' ? "Rendered from a CS2MapView export. Map data © the city's mayor. Fonts: Pretendard (OFL)."
+    : exporter === 'CSLMapView' ? "Rendered from CSLMapView exports. Map data © the city's mayor. Fonts: Pretendard (OFL)."
     : exporter === 'CSLModernMap' ? "Rendered from a CSLModernMap export. Map data © the city's mayor. Fonts: Pretendard (OFL)." : "Rendered from a Vellum Bridge export. Map data © the city's mayor. Fonts: Pretendard (OFL).";
   about.textContent = t(about.dataset.i18n);
 }
@@ -172,49 +172,50 @@ worker.onmessage = (e) => {
 };
 function requestContours() { state.contoursLoaded = true; worker.postMessage({ type: 'contours', interval: 10, major: 50 }); }
 
+const isCs2MapName = (name: string) => /\.cs2map$/i.test(name);
+
 async function openBuffer(buf: ArrayBuffer, label: string) {
   $('loading').hidden = false; $('loadingTitle').textContent = label; $('loadingBar').style.width = '2%'; $('loadingStep').textContent = t('Reading file…');
   loadT0 = performance.now();
+  if (isCs2MapName(label)) {
+    const entry = pending;
+    try {
+      const { normalizeCs2Map } = await import('./cs2map');
+      const fileTime = entry?.blob instanceof File && entry.blob.lastModified ? new Date(entry.blob.lastModified).toISOString() : '';
+      const { buffer, terrain } = await normalizeCs2Map(new Uint8Array(buf), fileTime);
+      if (entry !== pending) return;
+      worker.postMessage({ type: 'load', buffer, nativeTerrain: terrain }, [buffer, terrain.height.buffer, terrain.water.buffer]);
+    } catch (err) {
+      if (entry !== pending) return;
+      pending = null;
+      $('loading').hidden = true;
+      toast(t('Could not open map: {err}', { err: (err as Error).message }));
+      if (!state.city) $('welcome').hidden = false;
+    }
+    return;
+  }
   worker.postMessage({ type: 'load', buffer: buf }, [buf]);
 }
 /** a map opened from a file (or a remembered one): kept in the browser once it opens */
-let pending: { blob: Blob; file: string; save?: Recent['save'] } | null = null;
+let pending: { blob: Blob; file: string } | null = null;
 /** opening another map: a reload must not bring the sample back */
 const dropSample = () => { const u = new URL(location.href); if (u.searchParams.has('sample')) { u.searchParams.delete('sample'); history.replaceState(null, '', u); } };
-// first time a .vellummap is opened: what it carries compared with a .cslmap (unless turned off)
-const VELLUM_NOTICE_OFF = 'atlas:vellumNoticeOff';
-/** Ask before opening a .vellummap; resolves false when cancelled. Other files open straight away. */
-async function vellumNotice(f: File): Promise<boolean> {
-  try { if (localStorage.getItem(VELLUM_NOTICE_OFF) === '1') return true; } catch { /* storage blocked: ask every time */ }
-  const head = new Uint8Array(await f.slice(0, 4).arrayBuffer());
-  if (!/\.vellummap(\.gz)?$/i.test(f.name) && !(head[0] === 0x50 && head[1] === 0x4b && head[2] === 3 && head[3] === 4)) return true;
-  const dlg = document.createElement('dialog');
-  dlg.className = 'card vellum-notice'; dlg.setAttribute('aria-labelledby', 'vnTitle');
-  dlg.innerHTML = `<h2 id="vnTitle">${esc(t('Opening a .vellummap'))}</h2>
-    <p>${esc(t('Vellum Bridge exports have no lane data, so Skyline Map estimates lanes, speeds and one-way streets from each road\'s type and width.'))}</p>
-    <ul><li>${esc(t('Directions, travel-time areas and closure analysis are approximate. Adding the save (.crp) the export was made from gives them the real lanes and one-way streets.'))}</li>
-    <li>${esc(t('Lane counts, speed limits and bike lanes need that save too, and a few city discoveries are left out.'))}</li></ul>
-    <p class="vn-hint">${esc(t('For the full map, open a .cslmap export of the same city.'))} <a href="/blog/cities-skylines-city-map.html" target="_blank" rel="noopener">${esc(t('How to export your city with CSLMapView'))}</a></p>
-    <label class="vn-check"><input type="checkbox"> ${esc(t('Don\'t show this again'))}</label>
-    <div class="vn-actions"><button type="button" class="pill" data-v="cancel">${esc(t('Cancel'))}</button><button type="button" class="pill primary" data-v="open" autofocus>${esc(t('Open map'))}</button></div>`;
-  document.body.appendChild(dlg);
-  return new Promise((resolve) => {
-    const done = (open: boolean) => {
-      try { if (dlg.querySelector<HTMLInputElement>('.vn-check input')!.checked) localStorage.setItem(VELLUM_NOTICE_OFF, '1'); } catch { /* private mode */ }
-      dlg.close(); dlg.remove(); resolve(open);
-    };
-    dlg.addEventListener('click', (e) => { const v = (e.target as HTMLElement).closest<HTMLElement>('[data-v]')?.dataset.v; if (v) done(v === 'open'); });
-    dlg.addEventListener('cancel', (e) => { e.preventDefault(); done(false); }); // Esc
-    dlg.showModal();
-  });
+async function openFile(file: File) {
+  if (!isCs2MapName(file.name)) {
+    toast(t('Only .cs2map files exported by CS2MapView are supported.'));
+    return;
+  }
+  dropSample();
+  state.currentFile = '';
+  pending = { blob: file, file: file.name };
+  await openBuffer(await file.arrayBuffer(), file.name);
 }
-async function openFile(f: File) { if (!(await vellumNotice(f))) return; dropSample(); state.currentFile = ''; pending = { blob: f, file: f.name }; await openBuffer(await f.arrayBuffer(), f.name); }
-async function openRecent(r: Recent) { dropSample(); state.currentFile = ''; pending = { blob: r.map, file: r.file, save: r.save }; await openBuffer(await r.map.arrayBuffer(), r.file); }
+async function openRecent(r: Recent) { dropSample(); state.currentFile = ''; pending = { blob: r.map, file: r.file }; await openBuffer(await r.map.arrayBuffer(), r.file); }
 async function openSample() {
   pending = null;
   $('loading').hidden = false; $('loadingTitle').textContent = t('Sample city'); $('loadingStep').textContent = t('Downloading…'); $('loadingBar').style.width = '1%';
   try {
-    const r = await fetch('/samples/seorang.cslmap.gz');
+    const r = await fetch(import.meta.env.BASE_URL + 'samples/seorang.cslmap.gz');
     if (!r.ok) throw new Error(r.statusText);
     state.currentFile = '';
     await openBuffer(await r.arrayBuffer(), t('Sample city'));
@@ -268,7 +269,7 @@ function showCity(city: BuiltCity) {
   for (const id of ['topbar', 'layerSwitch', 'controls', 'dirFab']) $(id).hidden = false;
   $('cityChip').textContent = city.meta.name;
   cityTexts(city);
-  creditExporter(city.meta.source?.format === 'cmm' ? 'CSLModernMap' : city.meta.source ? 'Vellum Bridge' : 'CSLMapView');
+  creditExporter(city.meta.source?.producer === 'CS2MapView' ? 'CS2MapView' : city.meta.source?.format === 'cmm' ? 'CSLModernMap' : city.meta.source ? 'Vellum Bridge' : 'CSLMapView');
   syncUi(); applyStyle(); // bike lanes from the file or from a save (bikeFromSave)
   for (const id of ['dirFab', 'dirBtn', 'reachBtn', 'closureMenu']) { $(id).classList.toggle('off', !canRoute()); $(id).setAttribute('aria-disabled', String(!canRoute())); }
   if (!hasLanes()) toast(canRoute() ? t('Directions on this map are approximate') : t('Directions are off for this map'));
@@ -279,10 +280,9 @@ function showCity(city: BuiltCity) {
   state.recentId = null;
   if (pending) {
     const p = pending; pending = null;
-    const format: MapFormat = city.meta.source?.format ?? 'cslmap';
+    const format: MapFormat = isCs2MapName(p.file) ? 'cs2map' : city.meta.source?.format ?? 'cslmap';
     state.recentId = recentId(format, city.meta.name);
     void rememberMap(format, city.meta.name, p.file, city.meta.generated, p.blob);
-    if (p.save) void sim.load(new File([p.save.blob], p.save.file));
   }
   console.info(`[atlas] ${city.meta.name} ready in ${Math.round(performance.now() - loadT0)} ms`, city.meta.stats);
 }
@@ -299,11 +299,12 @@ async function loadLocalList() {
   try {
     const r = await fetch('/api/maps');
     if (!r.ok) return;
-    const { dir, maps } = (await r.json()) as { dir: string; maps: { file: string; size: number; mtime: number }[] };
+    const { dir, maps: available } = (await r.json()) as { dir: string; maps: { file: string; size: number; mtime: number }[] };
+    const maps = available.filter((m) => isCs2MapName(m.file));
     if (!maps.length) return;
     const groups = new Map<string, typeof maps>();
     for (const m of maps) {
-      const city = m.file.normalize('NFC').replace(/\.(cslmap(\.gz)?|vellummap|cmm(\.gz)?)$/i, '').replace(/-\d{8}-\d{6}$/, '');
+      const city = m.file.normalize('NFC').replace(/(?:_\d{14})?\.cs2map$/i, '');
       groups.set(city, [...(groups.get(city) ?? []), m]);
     }
     const fmt = (ms: number) => new Date(ms).toLocaleString(locale(), { dateStyle: 'medium', timeStyle: 'short' });
@@ -331,7 +332,7 @@ async function loadLocalList() {
 
 const fmtDate = (ms: number) => new Date(ms).toLocaleString(locale(), { dateStyle: 'medium', timeStyle: 'short' });
 async function renderRecent() {
-  const box = $('recentMaps'), list = await listRecent();
+  const box = $('recentMaps'), list = (await listRecent()).filter((r) => isCs2MapName(r.file));
   box.hidden = !list.length;
   // a first visit has no cities yet: a shorter top, so "Need your file?" shows above the fold
   $('startHero').classList.toggle('first', !list.length);
@@ -368,7 +369,7 @@ async function renderRecent() {
 $('sampleBtn').onclick = () => { const u = new URL(location.href); u.searchParams.set('sample', ''); history.replaceState(null, '', u); void openSample(); };
 // Send to Phone: a page opened from the desktop's QR code receives the city and opens it like a recent one
 const receiveDeps = {
-  open: async (map: Blob, file: string, save?: Recent['save']) => { dropSample(); state.currentFile = ''; pending = { blob: map, file, save }; await openBuffer(await map.arrayBuffer(), file); },
+  open: async (map: Blob, file: string) => { await openFile(new File([map], file)); },
   settings: (raw: CityContext) => adoptContext(raw),
 };
 // loaded only when used, so the app without Send to Phone (or before anyone uses it) carries none of its code
@@ -384,7 +385,6 @@ if (SEND_TO_PHONE) window.addEventListener('hashchange', () => {
 });
 if (!receiving && new URL(location.href).searchParams.has('sample')) void openSample();
 
-mountFindFile($('findFile'));
 $('fileInput').addEventListener('change', (e) => { const el = e.target as HTMLInputElement, f = el.files?.[0]; el.value = ''; if (f) openFile(f); });
 let dragDepth = 0;
 window.addEventListener('dragenter', (e) => { e.preventDefault(); dragDepth++; $('dropOverlay').hidden = false; });
@@ -393,20 +393,23 @@ window.addEventListener('dragover', (e) => e.preventDefault());
 window.addEventListener('drop', (e) => {
   e.preventDefault(); dragDepth = 0; $('dropOverlay').hidden = true;
   const f = e.dataTransfer?.files?.[0];
-  // a save (or .skysave) dropped on an open map loads over it; anything else opens as a map
-  if (f && state.city && /\.(crp|skysave)$/i.test(f.name)) { sim.open(); void sim.load(f); }
-  else if (f) openFile(f);
+  if (f) void openFile(f);
 });
 
 // ------------------------------------------------------------------ drawer
 const fmtGenerated = (raw: string) => { const d = new Date(raw); return isNaN(+d) ? raw : d.toLocaleString(locale(), { dateStyle: 'medium', timeStyle: 'short' }); };
 function renderDrawer(city: BuiltCity) {
   const s = city.meta.stats;
+  const source = city.meta.source;
+  const native = source?.producer === 'CS2MapView';
+  const from = !source ? '' : native ? t('Opened from {producer} (.cs2map)', { producer: source.producer })
+    : source.format === 'cmm' ? t('Opened from {producer} (.cmm)', { producer: source.producer })
+    : t('Opened from {producer} (.vellummap)', { producer: source.producer || 'Vellum' });
   const n = (v: number | undefined) => (v ?? 0).toLocaleString(locale());
   $('cityInfo').innerHTML = `
     <div class="city-title">${esc(city.meta.name)}</div>
     <div class="city-meta">${t('Saved {date}', { date: esc(fmtGenerated(city.meta.generated)) })}${state.currentFile ? ' · ' + esc(state.currentFile) : ''}</div>
-    ${city.meta.source ? `<div class="city-source">${esc(city.meta.source.format === 'cmm' ? t('Opened from {producer} (.cmm)', { producer: city.meta.source.producer }) : t('Opened from {producer} (.vellummap)', { producer: city.meta.source.producer || 'Vellum' }))}${city.meta.source.format === 'cmm' ? ` <span class="exp-tag">${esc(t('Experimental'))}</span>` : ''}${city.meta.source.lanes ? '' : ` <button class="link-btn" data-why-no-route>${esc(!city.meta.source.approxRoutes ? t('Directions are off for this map') : sim.savedLanes() !== null ? t('Directions use lanes from your save') : t('Directions on this map are approximate'))}</button>`}</div>` : ''}
+    ${source ? `<div class="city-source">${esc(from)}${source.format === 'cmm' ? ` <span class="exp-tag">${esc(native ? t('Driving routes are approximate') : t('Experimental'))}</span>` : ''}${source.lanes ? '' : ` <button class="link-btn" data-why-no-route>${esc(!source.approxRoutes ? t('Directions are off for this map') : sim.savedLanes() !== null ? t('Directions use lanes from your save') : t('Directions on this map are approximate'))}</button>`}</div>` : ''}
     <div class="stats">
       <div class="stat"><b>${n(s.buildings)}</b><span>${t('Buildings')}</span></div>
       <div class="stat"><b>${n(s.roads)}</b><span>${t('Road segments')}</span></div>
@@ -473,7 +476,7 @@ const modeName = (m: string) => (MODES[m] ? t(MODES[m]) : m);
 /** names the export leaves generic ("Toll booth") are shown in the UI language */
 const nameOf = (p: { name?: string; named?: number }) => (p.name && !p.named && GENERIC_NAMES.includes(p.name) ? t(p.name) : p.name ?? '');
 void BOOTH_KINDS;
-const INTERACTIVE = ['station', 'toll', 'poi', 'park-label', 'district-label', 'busstop', 'transit-line', 'building-3d', 'building', 'bridge-fill', 'road-fill', 'tunnel-fill', 'ground-rail', 'bridge-rail', 'ground-subway', 'bridge-subway', 'runway', 'lots'];
+const INTERACTIVE = ['station', 'toll', 'poi', 'business-address', 'park-label', 'district-label', 'busstop', 'transit-line', 'building-3d', 'building', 'bridge-fill', 'road-fill', 'tunnel-fill', 'ground-rail', 'bridge-rail', 'ground-subway', 'bridge-subway', 'runway', 'lots'];
 const interactive = () => INTERACTIVE.filter((id) => map.getLayer(id) && map.getLayoutProperty(id, 'visibility') !== 'none');
 
 function setSelection(features: { type: 'Feature'; geometry: any; properties: any }[]) {
@@ -506,6 +509,10 @@ const panelSheet = bottomSheet($('panel'), {
 });
 $('panelClose').onclick = closePanel;
 const row = (k: string, v: string | number | undefined | null) => (v === undefined || v === null || v === '' ? '' : `<div class="p-row"><span>${esc(t(k))}</span><span>${typeof v === 'number' ? v.toLocaleString(locale()) : esc(String(v))}</span></div>`);
+const businessRows = (p: Record<string, string>, showCompanies = false) =>
+  (showCompanies ? row('Company', p.companies) : '') +
+  row('Address', p.addressLabel || [p.street, p.houseNumber].filter(Boolean).join(' ')) +
+  row('Sells', p.sells) + row('Produces', p.produces) + row('Stores', p.stores);
 const head = (title: string, sub: string, icon?: string) => `<div class="p-head">${icon ? `<img src="${icon}" alt="">` : ''}<div><div class="p-title">${esc(title)}</div><div class="p-sub">${esc(sub)}</div></div></div>`;
 
 function stopList(line: BuiltCity['meta']['lines'][number]) {
@@ -550,7 +557,7 @@ function describe(f: MapGeoJSONFeature, lng: number, lat: number) {
   if (layer === 'transit-line') return selectLine(p.line, false);
   if (layer === 'station' || layer === 'busstop') {
     const names = String(p.lines ?? p.name).split(' · ');
-    panel(head(layer === 'busstop' ? t('Bus stop') : p.name || t('{mode} station', { mode: modeName(p.poi) }), `${modeName(p.poi)} · ${tn(names.length, '{n} line', '{n} lines')}`, iconDataUrl(p.poi, p.color)) +
+    panel(head(layer === 'busstop' ? p.stopName || t('Bus stop') : p.name || t('{mode} station', { mode: modeName(p.poi) }), `${modeName(p.poi)} · ${tn(names.length, '{n} line', '{n} lines')}`, iconDataUrl(p.poi, p.color)) +
       `<div class="p-rows">${names.map((n) => { const l = state.city!.meta.lines.find((x) => x.name === n); return `<div class="p-row"><span><i class="swatch" style="background:${l?.color ?? '#999'}"></i>${esc(n)}</span><span>${esc(l ? modeName(l.type) : '')}</span></div>`; }).join('')}</div>` +
       `<div class="p-actions">${names.map((n) => { const l = state.city!.meta.lines.find((x) => x.name === n); return l ? `<button class="pill" data-line="${l.id}">${esc(t('Show {name}', { name: n }))}</button>` : ''; }).join('')}${closeBtn({ kind: 'station', name: layer === 'station' ? p.name || undefined : undefined, at: fromLngLat(geom.coordinates[0], geom.coordinates[1]), scope: layer === 'busstop' ? 'road' : 'stretch' })}</div>`, p.color);
     setSelection([{ type: 'Feature', geometry: geom, properties: {} }]);
@@ -559,7 +566,12 @@ function describe(f: MapGeoJSONFeature, lng: number, lat: number) {
   if (layer === 'district-label') { showDistrict(p.name); return; }
   if (layer === 'park-label') { panel(head(p.name, L(p.poi) ?? t('Park area'), iconDataUrl(p.poi)) + `<div class="p-rows">${row('Type', L(p.poi))}${row('Position', coordText(lng, lat))}</div>`, '#34a05a'); return; }
   if (layer === 'toll') { showToll(p); panelRefresh = () => showToll(p); return; }
-  if (layer === 'poi') { panel(head(p.name, L(p.poi) ?? t('Point of interest'), iconDataUrl(p.poi)) + `<div class="p-rows">${row('Lot area', p.area ? fmtAreaSmall(p.area) : null)}${row('Position', coordText(lng, lat))}</div>`); return; }
+  if (layer === 'poi' || layer === 'business-address') {
+    const addressOnly = layer === 'business-address';
+    panel(head(p.name, addressOnly ? t('Address') : L(p.poi) ?? t('Point of interest'), addressOnly ? undefined : iconDataUrl(p.poi)) +
+      `<div class="p-rows">${businessRows(p)}${row('Lot area', p.area ? fmtAreaSmall(p.area) : null)}${row('Position', coordText(lng, lat))}</div>`);
+    return;
+  }
   describeRest(f, p, layer, geom, lng, lat);
 }
 function showToll(p: any) {
@@ -583,7 +595,7 @@ function describeRest(f: MapGeoJSONFeature, p: any, layer: string, geom: any, ln
     const grp = p.grp ?? p.id, parts = Number(p.nparts) > 1 ? c.sources.lots.features.filter((x) => (x.properties.grp ?? x.properties.id) === grp) as any[] : lot ? [lot] : [];
     setSelection(parts.map((x) => ({ type: 'Feature', geometry: x.geometry, properties: {} })));
     const level = /Level ?(\d)/.exec(p.icls ?? '')?.[1];
-    panel(head(nameOf(p) || L(p.cat) || t('Building'), L(p.cat) ?? p.cat) + `<div class="p-rows">${row('District', p.district)}${row('This part', p.part ? p.asset : null)}${row('Buildings in asset', Number(p.nparts) > 1 ? p.nparts : null)}${row('Zone / service', String(p.srv ?? '').replace(/([a-z])([A-Z])/g, '$1 $2'))}${row('Class', p.icls)}${p.named && !p.part ? row('Asset', p.asset) : ''}${row('Level', level)}${row('Lot area', p.area ? fmtAreaSmall(p.area) : null)}${row('Est. height', bld?.properties.h ? fmtHeight(bld.properties.h) : null)}${row('Asset ID', p.id)}</div>${sim.buildingHtml(Number(p.id))}`);
+    panel(head(nameOf(p) || L(p.cat) || t('Building'), L(p.cat) ?? p.cat) + `<div class="p-rows">${businessRows(p, true)}${row('District', p.district)}${row('This part', p.part ? p.asset : null)}${row('Buildings in asset', Number(p.nparts) > 1 ? p.nparts : null)}${row('Zone / service', String(p.srv ?? '').replace(/([a-z])([A-Z])/g, '$1 $2'))}${row('Class', p.icls)}${p.named && !p.part ? row('Asset', p.asset) : ''}${row('Level', level)}${row('Lot area', p.area ? fmtAreaSmall(p.area) : null)}${row('Est. height', bld?.properties.h ? fmtHeight(bld.properties.h) : null)}${row('Asset ID', p.id)}</div>${sim.buildingHtml(Number(p.id))}`);
     return;
   }
   if (layer === 'water') { panel(head(t('Water'), t('Lake, river or sea')) + `<div class="p-rows">${row('Position', coordText(lng, lat))}</div>`, '#a2cdf3'); return; }
@@ -814,7 +826,7 @@ function roadAt(pt: { x: number; y: number }): { seg?: number } {
 }
 /** Name of whatever labelled thing is under a screen point, else a generic pin label. */
 function placeLabelAt(pt: { x: number; y: number }): string {
-  const order = ['station', 'poi', 'park-label', 'building', 'lots'];
+  const order = ['station', 'poi', 'business-address', 'park-label', 'building', 'lots'];
   const f = map.queryRenderedFeatures([[pt.x - 10, pt.y - 10], [pt.x + 10, pt.y + 10]], { layers: order.filter((l) => map.getLayer(l)) })
     .filter((x) => x.properties.name && (!x.layer.id.match(/^(building|lots)$/) || x.properties.named))
     .sort((a, b) => order.indexOf(a.layer.id) - order.indexOf(b.layer.id))[0];
@@ -906,7 +918,7 @@ function choose(s: SearchEntry) {
   else {
     map.once('moveend', () => {
       const pt = map.project(s.center);
-      const f = map.queryRenderedFeatures([[pt.x - 20, pt.y - 20], [pt.x + 20, pt.y + 20]], { layers: ['district-label', 'park-label', 'poi', 'station'].filter((l) => map.getLayer(l)) }).find((x) => x.properties.name === s.name);
+      const f = map.queryRenderedFeatures([[pt.x - 20, pt.y - 20], [pt.x + 20, pt.y + 20]], { layers: ['district-label', 'park-label', 'poi', 'business-address', 'station', 'busstop'].filter((l) => map.getLayer(l)) }).find((x) => x.properties.name === s.name);
       if (s.kind === 'district') showDistrict(s.name);
       else if (f) describe(f, s.center[0], s.center[1]);
       else panel(head(s.name, s.kind === 'district' ? t('District') : L(s.sub) ?? s.sub));

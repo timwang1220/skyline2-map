@@ -12,3 +12,8 @@ marketing/
 
 # local-only test files (tools/vellum-sim-check.ts)
 tools/fixtures/local/
+
+# Local CS2 exports and saves
+*.cs2map
+*.csl2map
+*.cok

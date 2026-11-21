@@ -112,6 +112,19 @@ async function inflate(buf: Uint8Array, e: Entry): Promise<Uint8Array> {
   return out;
 }
 
+/** Read only the requested bounded members of an export archive. */
+export async function readExportMembers(bytes: Uint8Array, limits: Record<string, number>, optional: Record<string, number> = {}) {
+  if (!isZip(bytes)) throw new Error('Expected a ZIP map export');
+  const members = new Map(zipEntries(bytes).map((entry) => [entry.name, entry]));
+  const requested = [...Object.entries(limits), ...Object.entries(optional).filter(([name]) => members.has(name))];
+  const parts = await Promise.all(requested.map(async ([name, limit]) => {
+    const entry = members.get(name);
+    if (!entry || entry.usize > limit) throw new Error(`Missing or oversized export member: ${name}`);
+    return [name, await inflate(bytes, entry)] as const;
+  }));
+  return new Map(parts);
+}
+
 async function sha256(b: Uint8Array) {
   const h = new Uint8Array(await crypto.subtle.digest('SHA-256', b as BufferSource));
   let s = ''; for (const x of h) s += x.toString(16).padStart(2, '0'); return s;
