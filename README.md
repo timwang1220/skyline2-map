@@ -32,6 +32,7 @@ In the repository containing this website's source, choose **Settings → Pages 
 ## Credits
 
 - SVGs in `src/lucide-icons/` are from [Lucide](https://github.com/lucide-icons/lucide/tree/c1a02a04d4f3f7049d44567d62b8b06cff0b9103/icons). See the [license notice](public/licenses/lucide.txt).
+- The Starbucks, Apple and Aldi Süd SVGs in `src/brand-icons/` are from [Simple Icons](https://github.com/simple-icons/simple-icons/tree/32e030086fdc605196391aab28519b14dc4295b4/icons) ([CC0 project notice](public/licenses/simple-icons.txt)). The Aldi Süd artwork is cropped to its stylized A for the small map badge. The respective owners retain their trademarks. The map uses the marks to identify stores in the fictional city.
 
 - Map exports come from the [CSLMapView](https://steamcommunity.com/sharedfiles/filedetails/?id=845665815) mod. Its original web viewer inspired the format knowledge; no code from it is used.
 - Rendering by [MapLibre GL JS](https://maplibre.org/). Font: [Pretendard](https://github.com/orioncactus/pretendard) (SIL OFL 1.1).

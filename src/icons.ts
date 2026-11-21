@@ -19,9 +19,12 @@ import monitor from './lucide-icons/monitor.svg?raw';
 import chair from './lucide-icons/armchair.svg?raw';
 import book from './lucide-icons/book-open.svg?raw';
 import tower from './lucide-icons/radio-tower.svg?raw';
+import starbucks from './brand-icons/starbucks.svg?raw';
+import apple from './brand-icons/apple.svg?raw';
+import aldi from './brand-icons/aldisud.svg?raw';
 
-type LucideBadge = { svg: string; color: string; scale?: number };
-const lucideBadges: Record<string, LucideBadge> = {
+type SvgBadge = { svg: string; color: string; scale?: number };
+const svgBadges: Record<string, SvgBadge> = {
   residential: { svg: house, color: '#3276cc' },
   beverages: { svg: drink, color: '#cc5a12' },
   government: { svg: cityHall, color: '#68717d' },
@@ -42,17 +45,19 @@ const lucideBadges: Record<string, LucideBadge> = {
   furniture: { svg: chair, color: '#966645' },
   library: { svg: book, color: '#7656b0' },
   telecom: { svg: tower, color: '#4c668e' },
+  starbucks: { svg: starbucks, color: '#006241', scale: 0.44 },
+  apple: { svg: apple, color: '#44464b', scale: 0.44 },
+  aldi: { svg: aldi, color: '#004976', scale: 0.49 },
 };
 
-function svgBadgeUrl({ svg, color, scale = 0.54 }: LucideBadge, size: number) {
+function svgBadgeUrl({ svg, color, scale = 0.54 }: SvgBadge, size: number) {
   const pictogram = svg.replace('currentColor', '#fff');
-  // Lucide strokes occupy more of the 24-unit viewBox than the existing pictograms.
   const padding = 12 * (1 - scale);
-  const badge = `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 24 24"><circle cx="12" cy="12" r="11" fill="white"/><circle cx="12" cy="12" r="9.6" fill="${color}"/><g transform="translate(${padding} ${padding}) scale(${scale})">${pictogram}</g></svg>`;
+  const badge = `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 24 24"><circle cx="12" cy="12" r="11" fill="white"/><circle cx="12" cy="12" r="9.6" fill="${color}"/><g fill="white" transform="translate(${padding} ${padding}) scale(${scale})">${pictogram}</g></svg>`;
   return 'data:image/svg+xml,' + encodeURIComponent(badge);
 }
 
-const lucideImages = new Map<string, Promise<HTMLImageElement>>();
+const svgImages = new Map<string, Promise<HTMLImageElement>>();
 
 // Pictograms drawn on a 24-unit grid, white on a coloured badge.
 const GLYPHS: Record<string, (c: CanvasRenderingContext2D) => void> = {
@@ -143,15 +148,15 @@ export function addIcons(map: MLMap, stationColors: string[]) {
     add('poi-' + k, badge(v.color, v.glyph, !!v.square, v.square ? 20 : 22));
     add('poi-sm-' + k, badge(v.color, v.glyph, !!v.square, 15));
   }
-  for (const [kind, style] of Object.entries(lucideBadges)) {
+  for (const [kind, style] of Object.entries(svgBadges)) {
     const id = 'poi-' + kind;
     if (map.hasImage(id)) continue;
-    let ready = lucideImages.get(id);
+    let ready = svgImages.get(id);
     if (!ready) {
       const image = new Image();
       image.src = svgBadgeUrl(style, 44);
       ready = image.decode().then(() => image);
-      lucideImages.set(id, ready);
+      svgImages.set(id, ready);
     }
     void ready.then(image => {
       if (!map.hasImage(id)) map.addImage(id, image, { pixelRatio: 2 });
@@ -178,7 +183,7 @@ export function addIcons(map: MLMap, stationColors: string[]) {
 
 /** Badge as a data URL, used in the UI (search results, info panel). */
 export function iconDataUrl(kind: string, color?: string): string {
-  if (lucideBadges[kind]) return svgBadgeUrl(lucideBadges[kind], 48);
+  if (svgBadges[kind]) return svgBadgeUrl(svgBadges[kind], 48);
   const v = POI_STYLE[kind] ?? { color: '#7c8088', glyph: 'dot' };
   const img = badge(color ?? v.color, v.glyph, !!v.square, 24);
   const cv = document.createElement('canvas'); cv.width = img.width; cv.height = img.height;

@@ -129,6 +129,15 @@ export function classify(seg: CSeg, st: CSegType | undefined, lanes: ReturnType<
 
 interface BCat { cat: string; poi: string | null; height: number; inset: number }
 
+const commercialBrandMarkers = new Map([
+  ['星巴克', 'starbucks'],
+  ['starbucks', 'starbucks'],
+  ['apple', 'apple'],
+  ['奥乐齐', 'aldi'],
+  ['奥乐齐超市', 'aldi'],
+  ['aldi', 'aldi'],
+]);
+
 const facilityMarkers = [
   [/政府/, 'government'],
   [/电厂/, 'powerplant'],
@@ -534,10 +543,12 @@ export function buildCity(city: CityData, progress: (msg: string) => void = () =
     }
     const cx = p2.reduce((s, p) => s + p[0], 0) / p2.length, cz = p2.reduce((s, p) => s + p[1], 0) / p2.length;
     const business = b.companyKind ?? (b.srv === 'Commercial' ? 'shop' : b.srv === 'Industrial' ? 'industry' : b.srv === 'Office' ? 'office' : null);
-    const namedCommercial = business === 'shop' && !!(b.myname || b.individualName);
+    const individualName = b.myname || b.individualName || '';
+    const namedCommercial = business === 'shop' && !!individualName;
     const labels = [b.myname, b.individualName, b.exportLabel, b.name];
     const facilityPoi = facilityMarkers.find(([pattern]) => labels.some(name => name && pattern.test(name)))?.[1];
-    const specialPoi = facilityPoi ?? (namedCommercial ? 'landmark' : b.srv === 'Residential' ? 'residential' : null);
+    const commercialPoi = namedCommercial ? commercialBrandMarkers.get(individualName.trim().toLowerCase()) ?? 'landmark' : null;
+    const specialPoi = facilityPoi ?? commercialPoi ?? (b.srv === 'Residential' ? 'residential' : null);
     const codes = b.salesCodes ?? [];
     const salesPoi = salesMarkers.find(([resources]) => resources.some(code => codes.includes(code)))?.[1];
     const companyIsChosenName = !!b.companies?.includes(b.myname);
