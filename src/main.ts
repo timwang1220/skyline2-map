@@ -399,7 +399,7 @@ onlineDialog.querySelector('form')!.onsubmit = async (event) => {
     data = await decryptOnlineCity(await response.arrayBuffer(), name);
   } catch {
     if (!request.signal.aborted) {
-      onlineStatus.textContent = t('City not found');
+      onlineStatus.textContent = navigator.language.toLowerCase().startsWith('zh') ? '未找到该城市' : t('City not found');
       onlineStatus.hidden = false;
       onlineOpen.disabled = false;
     }
