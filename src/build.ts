@@ -482,7 +482,8 @@ export function buildCity(city: CityData, progress: (msg: string) => void = () =
   const byId = new Map(city.buildings.map((b) => [b.id, b]));
   const groupHead = buildingGroups(city.buildings);
   for (const [id, head] of groupHead) {
-    if (byId.get(id)?.exportLabel !== undefined && /Placeholder/i.test(byId.get(head)?.name ?? '')) groupHead.delete(id);
+    const part = byId.get(id);
+    if (part?.independentAnnex || (part?.exportLabel !== undefined && /Placeholder/i.test(byId.get(head)?.name ?? ''))) groupHead.delete(id);
   }
   const groupSize = new Map<number, number>();
   for (const h of groupHead.values()) groupSize.set(h, (groupSize.get(h) ?? 1) + 1);
@@ -555,7 +556,7 @@ export function buildCity(city: CityData, progress: (msg: string) => void = () =
     if (b.myname && stMode && !head) continue;
     if (head || addressOnly || (business && companyIsChosenName)) continue; // parts never repeat asset labels
     // toll booths get their own marker (tolls section); don't also label them as a named landmark
-    const poi = /Toll Booth/i.test(b.name) ? null : cat.poi ?? (b.myname ? (b.subsrv.includes('Bus') ? 'bus' : 'landmark') : null);
+    const poi = /Toll Booth/i.test(b.name) ? null : cat.poi ?? (b.myname || b.independentAnnex ? (b.subsrv.includes('Bus') ? 'bus' : 'landmark') : null);
     if (poi && nm.length > 1 && (b.myname || !(poi === 'landmark' && isJunkName(nm)))) {
       if (b.exportLabel === undefined && poiSeen.some((p) => p.name === nm && Math.hypot(p.x - cx, p.z - cz) < 250)) continue;
       poiSeen.push({ name: nm, x: cx, z: cz, poi, area });

@@ -386,7 +386,12 @@ onlineDialog.addEventListener('close', () => onlineRequest?.abort());
 onlineDialog.querySelector('form')!.onsubmit = async (event) => {
   event.preventDefault();
   const name = onlineName.value.trim();
-  if (!name || onlineOpen.disabled) return;
+  if (onlineOpen.disabled) return;
+  if (!name) {
+    onlineStatus.textContent = 'Enter the city access code.';
+    onlineStatus.hidden = false;
+    return;
+  }
   const request = new AbortController();
   onlineRequest = request;
   onlineOpen.disabled = true;
@@ -399,7 +404,7 @@ onlineDialog.querySelector('form')!.onsubmit = async (event) => {
     data = await decryptOnlineCity(await response.arrayBuffer(), name);
   } catch {
     if (!request.signal.aborted) {
-      onlineStatus.textContent = navigator.language.toLowerCase().startsWith('zh') ? '未找到该城市' : t('City not found');
+      onlineStatus.textContent = 'City not found';
       onlineStatus.hidden = false;
       onlineOpen.disabled = false;
     }
@@ -411,7 +416,7 @@ onlineDialog.querySelector('form')!.onsubmit = async (event) => {
   pending = null;
   state.currentFile = '';
   dropSample();
-  await openBuffer(data, name + '.cs2map');
+  await openBuffer(data, 'Online city.cs2map');
 };
 // Send to Phone: a page opened from the desktop's QR code receives the city and opens it like a recent one
 const receiveDeps = {

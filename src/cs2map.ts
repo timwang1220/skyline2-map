@@ -93,6 +93,7 @@ export async function normalizeCs2Map(bytes: Uint8Array, fileTime: string) {
   if (text(main, 'FileVersion').trim() !== '0.1.1.0') throw new Error('This viewer supports CS2MapView export format 0.1.1.0');
   const terrain: Cs2Terrain = { height: sampleGrid(data.get('terrain.dat')!, child(main, 'Terrain'), true), water: sampleGrid(data.get('water.dat')!, child(main, 'Water'), false) };
   const stats = new Map<number, BuildingStats>();
+  const upgrades = new Set<number>();
   if (data.has('skyline-building-stats.xml')) {
     const root = xml('skyline-building-stats', 'SkylineBuildingStats');
     if (attr(root, 'version') === '1') {
@@ -102,6 +103,7 @@ export async function normalizeCs2Map(bytes: Uint8Array, fileTime: string) {
           if (record.hasAttribute(key)) b[key] = numberAttr(record, key);
         }
         stats.set(id(record), b);
+        if (attr(record, 'upgrade') === 'true') upgrades.add(id(record));
       }
       const grid = root.querySelector(':scope > Population');
       if (grid) {
@@ -157,7 +159,9 @@ export async function normalizeCs2Map(bytes: Uint8Array, fileTime: string) {
     [0x200000, 'Parking'], [0x10000 | 0x100, 'PoliceDepartment'], [0x80, 'FireDepartment'],
     [0x400003, 'Electricity'], [0x0c, 'Water'], [0x40, 'Garbage'], [0x2000, 'Disaster'],
     [0x100200, 'Road'], [0x400 | 0x800 | 0x20000 | 0x40000 | 0x80000, 'Civic']] as const;
-  const footprints = children(buildings, 'Buildings').map((e) => {
+  const exportedBuildings = children(buildings, 'Buildings');
+  const buildingsById = new Map(exportedBuildings.map((e) => [id(e), e]));
+  const footprints = exportedBuildings.map((e) => {
     const prefab = required(buildingPrefabs.get(numberAttr(e, 'prefab')) ?? null, 'building prefab');
     const [x, y, z] = xyz(child(e, 'Position')), [w, , d] = xyz(child(prefab, 'Size')), rotation = child(e, 'Rotation');
     const angle = 2 * Math.atan2(numberAttr(rotation, 'y'), numberAttr(rotation, 'w')), c = Math.cos(angle), s = Math.sin(angle);
@@ -173,11 +177,18 @@ export async function normalizeCs2Map(bytes: Uint8Array, fileTime: string) {
       return [activity, [...new Set(names.filter(Boolean))].join(' / ')];
     }));
     const prefabName = attr(prefab, 'name');
+    const parentId = Math.max(0, numberAttr(e, 'parent'));
+    const parent = buildingsById.get(parentId);
+    const name = attr(e, 'name').trim();
+    // Old exports have no upgrade marker. Require a building service and a distinct game label.
+    const independentAnnex = !!parent && !upgrades.has(buildingId) && services.some(([flag]) => flags & flag) &&
+      !!name && !name.startsWith('Assets.') && name !== attr(parent, 'name').trim();
     return { id: buildingId, name: prefabName, service: services.find(([flag]) => flags & flag)?.[1] ?? '', footprint, base_elevation_m: y, skyline_stats: stats.get(buildingId),
+      independent_annex: independentAnnex,
       individual_name: !!(flags & 0x20000000) && /signature/i.test(prefabName),
       ...(record ? { company_kind: attr(record, 'kind'), company_names: tenants.map((tenant) => attr(tenant, 'name')).filter(Boolean),
         house_number: attr(record, 'number'), street_name: attr(record, 'road'), business_products: products } : {}),
-      parent_building_id: Math.max(0, numberAttr(e, 'parent')), display_name: { text: attr(e, 'name'), source: attr(e, 'customName') === 'true' ? 'custom' : 'game' } };
+      parent_building_id: parentId, display_name: { text: name, source: attr(e, 'customName') === 'true' ? 'custom' : 'game' } };
   });
   const areas = children(districts, 'Districts').map((e, i) => {
     const [x, , z] = xyz(child(e, 'CenterPosition'));

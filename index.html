@@ -237,15 +237,15 @@
   <button id="dirFab" class="fab" hidden title="Directions" aria-label="Directions" data-i18n-title="Directions" data-i18n-aria="Directions"><svg viewBox="0 0 24 24"><path d="M21.7 11.3l-9-9a1 1 0 0 0-1.4 0l-9 9a1 1 0 0 0 0 1.4l9 9a1 1 0 0 0 1.4 0l9-9a1 1 0 0 0 0-1.4zM14 14.5V12h-4v3H8v-4a1 1 0 0 1 1-1h5V7.5l3.5 3.5-3.5 3.5z"/></svg></button>
 
   <div id="dropOverlay" hidden><div data-i18n="Drop to open map">Drop to open map</div></div>
-  <dialog id="onlineCity" class="card online-city" aria-labelledby="onlineCityTitle">
-    <form>
-      <h2 id="onlineCityTitle" data-i18n="Use online city">Use online city</h2>
-      <label for="onlineCityName" data-i18n="City name">City name</label>
-      <input id="onlineCityName" type="text" autocomplete="off" spellcheck="false" required autofocus />
+  <dialog id="onlineCity" class="card online-city" aria-labelledby="onlineCityTitle" lang="en">
+    <form novalidate>
+      <h2 id="onlineCityTitle">Use online city</h2>
+      <label for="onlineCityName">City name or access code</label>
+      <input id="onlineCityName" type="password" autocomplete="off" spellcheck="false" autofocus />
       <p id="onlineCityStatus" role="status" hidden></p>
       <div class="online-city-actions">
-        <button id="onlineCityCancel" type="button" class="pill" data-i18n="Cancel">Cancel</button>
-        <button id="onlineCityOpen" type="submit" class="pill primary" data-i18n="Open">Open</button>
+        <button id="onlineCityCancel" type="button" class="pill">Cancel</button>
+        <button id="onlineCityOpen" type="submit" class="pill primary">Open</button>
       </div>
     </form>
   </dialog>
