@@ -2,22 +2,25 @@ import type { Map as MLMap } from 'maplibre-gl';
 import house from './lucide-icons/house.svg?raw';
 import drink from './lucide-icons/cup-soda.svg?raw';
 import cityHall from './lucide-icons/landmark.svg?raw';
-import bed from './lucide-icons/bed-double.svg?raw';
+import bed from './lucide-icons/bed.svg?raw';
 import utensils from './lucide-icons/utensils.svg?raw';
 import flask from './lucide-icons/flask-conical.svg?raw';
 
-const lucideBadges: Record<string, { svg: string; color: string }> = {
+type LucideBadge = { svg: string; color: string; scale?: number };
+const lucideBadges: Record<string, LucideBadge> = {
   residential: { svg: house, color: '#3276cc' },
   beverages: { svg: drink, color: '#cc5a12' },
   government: { svg: cityHall, color: '#68717d' },
-  lodging: { svg: bed, color: '#a780cf' },
+  lodging: { svg: bed, color: '#a780cf', scale: 0.46 },
   food: { svg: utensils, color: '#cc5a12' },
   chemicals: { svg: flask, color: '#248550' },
 };
 
-function svgBadgeUrl({ svg, color }: { svg: string; color: string }, size: number) {
+function svgBadgeUrl({ svg, color, scale = 0.54 }: LucideBadge, size: number) {
   const pictogram = svg.replace('currentColor', '#fff');
-  const badge = `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 24 24"><circle cx="12" cy="12" r="11" fill="white"/><circle cx="12" cy="12" r="9.6" fill="${color}"/><g transform="translate(3.8 3.8) scale(.68)">${pictogram}</g></svg>`;
+  // Lucide strokes occupy more of the 24-unit viewBox than the existing pictograms.
+  const padding = 12 * (1 - scale);
+  const badge = `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 24 24"><circle cx="12" cy="12" r="11" fill="white"/><circle cx="12" cy="12" r="9.6" fill="${color}"/><g transform="translate(${padding} ${padding}) scale(${scale})">${pictogram}</g></svg>`;
   return 'data:image/svg+xml,' + encodeURIComponent(badge);
 }
 

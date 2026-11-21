@@ -185,7 +185,8 @@ export async function normalizeCs2Map(bytes: Uint8Array, fileTime: string) {
       !!name && !name.startsWith('Assets.') && name !== attr(parent, 'name').trim();
     return { id: buildingId, name: prefabName, service: services.find(([flag]) => flags & flag)?.[1] ?? '', footprint, base_elevation_m: y, skyline_stats: stats.get(buildingId),
       independent_annex: independentAnnex,
-      individual_name: !!(flags & 0x20000000) && /signature/i.test(prefabName),
+      individual_name: !!(flags & 0x20000000) && (!!(flags & 0x1000000) || /signature/i.test(prefabName)) &&
+        !!name && !name.startsWith('Assets.'),
       ...(record ? { company_kind: attr(record, 'kind'), company_names: tenants.map((tenant) => attr(tenant, 'name')).filter(Boolean),
         house_number: attr(record, 'number'), street_name: attr(record, 'road'), business_products: products,
         sales_codes: [...record.querySelectorAll('Product[activity="sells"]')].map(product => attr(product, 'code')).filter(Boolean) } : {}),

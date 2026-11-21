@@ -509,8 +509,9 @@ export function buildCity(city: CityData, progress: (msg: string) => void = () =
     }
     const cx = p2.reduce((s, p) => s + p[0], 0) / p2.length, cz = p2.reduce((s, p) => s + p[1], 0) / p2.length;
     const business = b.companyKind ?? (b.srv === 'Commercial' ? 'shop' : b.srv === 'Industrial' ? 'industry' : b.srv === 'Office' ? 'office' : null);
+    const namedCommercial = business === 'shop' && !!(b.myname || b.individualName);
     const specialPoi = [b.myname, b.individualName, b.exportLabel, b.name].some(name => name?.includes('政府')) ? 'government'
-      : b.srv === 'Residential' ? 'residential' : null;
+      : namedCommercial ? 'landmark' : b.srv === 'Residential' ? 'residential' : null;
     const codes = b.salesCodes ?? [];
     const salesPoi = codes.includes('Beverages') ? 'beverages' : codes.includes('Lodging') ? 'lodging'
       : ['Food', 'Meals', 'ConvenienceFood'].some(code => codes.includes(code)) ? 'food'
@@ -521,7 +522,7 @@ export function buildCity(city: CityData, progress: (msg: string) => void = () =
       ? b.address.street + b.address.number + '号' : [b.address.street, b.address.number].filter(Boolean).join(' ')) : '';
     const addressOnly = !companies && !b.myname && !b.individualName && !!addressLabel && (business !== null || b.srv === 'Residential');
     const addressText = addressOnly && !specialPoi && !salesPoi;
-    const companyMarker = specialPoi !== 'government' && business && companies ? salesPoi ?? business : null;
+    const companyMarker = !namedCommercial && specialPoi !== 'government' && business && companies ? salesPoi ?? business : null;
     let dx = 0, dz = 0;
     if (specialPoi === 'residential' && companyMarker) {
       // Separate the two markers along the frontage of a mixed-use lot.
@@ -572,11 +573,11 @@ export function buildCity(city: CityData, progress: (msg: string) => void = () =
     // toll booths get their own marker (tolls section); don't also label them as a named landmark
     const poi = specialPoi ?? salesPoi ?? (/Toll Booth/i.test(b.name) ? null : cat.poi ??
       (b.myname || b.independentAnnex ? (b.subsrv.includes('Bus') ? 'bus' : 'landmark') : null));
-    if (poi && (poi === 'residential' || nm.length > 1) && (b.myname || !(poi === 'landmark' && isJunkName(nm)))) {
+    if (poi && (poi === 'residential' || nm.length > 1) && (namedCommercial || b.myname || !(poi === 'landmark' && isJunkName(nm)))) {
       if (poi !== 'residential' && b.exportLabel === undefined && poiSeen.some((p) => p.name === nm && Math.hypot(p.x - cx, p.z - cz) < 250)) continue;
       poiSeen.push({ name: nm, x: cx, z: cz, poi, area });
       let rank = poi === 'hospital' && cat.height > 20 ? 3 : poi === 'landmark' ? (area > 8000 ? 4 : 5) : poi === 'school' && /University/i.test(b.icls) ? 4 : 6;
-      if (b.myname) rank = Math.min(rank, 4); // names the player chose get shown early
+      if (b.myname || namedCommercial) rank = Math.min(rank, 4);
       const center = toLngLat(cx - dx, cz - dz);
       places.push({ type: 'Feature', properties: { buildingId: b.id, kind: 'poi', poi, name: nm, rank, area: Math.round(area) }, geometry: { type: 'Point', coordinates: center } });
       if (nm) search.push({ name: nm, kind: 'poi', sub: poi, center, zoom: 17 });
