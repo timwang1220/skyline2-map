@@ -25,7 +25,7 @@ The upstream AGPL-3.0 license permits modifying and redistributing the project u
 
 ## GitHub Pages
 
-In the repository containing this website's source, choose **Settings → Pages → GitHub Actions**. Run **Deploy to GitHub Pages** from **Actions**. The workflow builds the site with its Pages base path and links to the source commit. Visitors select their own map files in the browser.
+In the repository containing this website's source, choose **Settings → Pages → GitHub Actions**. Pushes to `main` deploy automatically. You can also run **Deploy to GitHub Pages** from **Actions**. The workflow builds the site for its Pages base path, publishes `dist/`, and links to the source commit. Visitors select their own map files in the browser.
 
 ## Credits
 
