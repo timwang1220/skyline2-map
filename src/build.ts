@@ -129,6 +129,31 @@ export function classify(seg: CSeg, st: CSegType | undefined, lanes: ReturnType<
 
 interface BCat { cat: string; poi: string | null; height: number; inset: number }
 
+const facilityMarkers = [
+  [/政府/, 'government'],
+  [/电厂/, 'powerplant'],
+  [/回收/, 'recycling'],
+  [/污水/, 'wastewater'],
+  [/抽水站/, 'pumping'],
+  [/邮局/, 'postoffice'],
+  [/维护/, 'maintenance'],
+  [/图书馆|library/i, 'library'],
+  [/通信塔|通讯塔|信号塔|电信塔|(?:telecom|radio|cell)\s*(?:tower|mast)/i, 'telecom'],
+] as const;
+
+const salesMarkers = [
+  [['Beverages'], 'beverages'],
+  [['Lodging'], 'lodging'],
+  [['Food', 'Meals', 'ConvenienceFood'], 'food'],
+  [['Chemicals'], 'chemicals'],
+  [['Entertainment'], 'entertainment'],
+  [['Textiles'], 'textiles'],
+  [['Pharmaceuticals'], 'pharmaceuticals'],
+  [['Vehicles'], 'vehicles'],
+  [['Electronics'], 'electronics'],
+  [['Furniture'], 'furniture'],
+] as const;
+
 function buildingCategory(b: CBuilding, area: number): BCat | null {
   const nm = b.name, srv = b.srv, sub = b.subsrv, ic = b.icls;
   if (b.exportLabel !== undefined && /Ruins(?:OldMill|OldCemetery|Castle|StoneHeadFormation)/i.test(nm))
@@ -510,19 +535,18 @@ export function buildCity(city: CityData, progress: (msg: string) => void = () =
     const cx = p2.reduce((s, p) => s + p[0], 0) / p2.length, cz = p2.reduce((s, p) => s + p[1], 0) / p2.length;
     const business = b.companyKind ?? (b.srv === 'Commercial' ? 'shop' : b.srv === 'Industrial' ? 'industry' : b.srv === 'Office' ? 'office' : null);
     const namedCommercial = business === 'shop' && !!(b.myname || b.individualName);
-    const specialPoi = [b.myname, b.individualName, b.exportLabel, b.name].some(name => name?.includes('政府')) ? 'government'
-      : namedCommercial ? 'landmark' : b.srv === 'Residential' ? 'residential' : null;
+    const labels = [b.myname, b.individualName, b.exportLabel, b.name];
+    const facilityPoi = facilityMarkers.find(([pattern]) => labels.some(name => name && pattern.test(name)))?.[1];
+    const specialPoi = facilityPoi ?? (namedCommercial ? 'landmark' : b.srv === 'Residential' ? 'residential' : null);
     const codes = b.salesCodes ?? [];
-    const salesPoi = codes.includes('Beverages') ? 'beverages' : codes.includes('Lodging') ? 'lodging'
-      : ['Food', 'Meals', 'ConvenienceFood'].some(code => codes.includes(code)) ? 'food'
-      : codes.includes('Chemicals') ? 'chemicals' : null;
+    const salesPoi = salesMarkers.find(([resources]) => resources.some(code => codes.includes(code)))?.[1];
     const companyIsChosenName = !!b.companies?.includes(b.myname);
     const companies = b.companies?.join(' · ') ?? '';
     const addressLabel = b.address ? (/\p{Script=Han}/u.test(b.address.street)
       ? b.address.street + b.address.number + '号' : [b.address.street, b.address.number].filter(Boolean).join(' ')) : '';
     const addressOnly = !companies && !b.myname && !b.individualName && !!addressLabel && (business !== null || b.srv === 'Residential');
     const addressText = addressOnly && !specialPoi && !salesPoi;
-    const companyMarker = !namedCommercial && specialPoi !== 'government' && business && companies ? salesPoi ?? business : null;
+    const companyMarker = !namedCommercial && !facilityPoi && business && companies ? salesPoi ?? business : null;
     let dx = 0, dz = 0;
     if (specialPoi === 'residential' && companyMarker) {
       // Separate the two markers along the frontage of a mixed-use lot.

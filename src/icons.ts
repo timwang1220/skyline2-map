@@ -5,6 +5,20 @@ import cityHall from './lucide-icons/landmark.svg?raw';
 import bed from './lucide-icons/bed.svg?raw';
 import utensils from './lucide-icons/utensils.svg?raw';
 import flask from './lucide-icons/flask-conical.svg?raw';
+import zap from './lucide-icons/zap.svg?raw';
+import recycle from './lucide-icons/recycle.svg?raw';
+import waves from './lucide-icons/waves-horizontal.svg?raw';
+import droplet from './lucide-icons/droplet.svg?raw';
+import mail from './lucide-icons/mail.svg?raw';
+import wrench from './lucide-icons/wrench.svg?raw';
+import gamepad from './lucide-icons/gamepad-2.svg?raw';
+import shirt from './lucide-icons/shirt.svg?raw';
+import pill from './lucide-icons/pill.svg?raw';
+import car from './lucide-icons/car-front.svg?raw';
+import monitor from './lucide-icons/monitor.svg?raw';
+import chair from './lucide-icons/armchair.svg?raw';
+import book from './lucide-icons/book-open.svg?raw';
+import tower from './lucide-icons/radio-tower.svg?raw';
 
 type LucideBadge = { svg: string; color: string; scale?: number };
 const lucideBadges: Record<string, LucideBadge> = {
@@ -14,6 +28,20 @@ const lucideBadges: Record<string, LucideBadge> = {
   lodging: { svg: bed, color: '#a780cf', scale: 0.46 },
   food: { svg: utensils, color: '#cc5a12' },
   chemicals: { svg: flask, color: '#248550' },
+  powerplant: { svg: zap, color: '#947211' },
+  recycling: { svg: recycle, color: '#387c4d' },
+  wastewater: { svg: waves, color: '#2f737d' },
+  pumping: { svg: droplet, color: '#357dc0' },
+  postoffice: { svg: mail, color: '#436aa4' },
+  maintenance: { svg: wrench, color: '#676e7c' },
+  entertainment: { svg: gamepad, color: '#8652a8' },
+  textiles: { svg: shirt, color: '#ac526d' },
+  pharmaceuticals: { svg: pill, color: '#1b8077' },
+  vehicles: { svg: car, color: '#47669a' },
+  electronics: { svg: monitor, color: '#5d61a5' },
+  furniture: { svg: chair, color: '#966645' },
+  library: { svg: book, color: '#7656b0' },
+  telecom: { svg: tower, color: '#4c668e' },
 };
 
 function svgBadgeUrl({ svg, color, scale = 0.54 }: LucideBadge, size: number) {
