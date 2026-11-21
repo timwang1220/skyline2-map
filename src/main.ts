@@ -6,6 +6,7 @@ import './app.css';
 import './consent';
 import mlWorkerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?url';
 import { buildStyle, SOURCE_KEYS, type StyleOptions } from './style';
+import { populationLayer, showPopulationGrid } from './population-layer';
 import { registerDemProtocol, setDem } from './dem';
 import { addIcons, iconDataUrl } from './icons';
 import type { BuiltCity, SearchEntry, FC } from './build';
@@ -60,6 +61,7 @@ const esc = (s: string) => s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&
 type Mode = 'map' | 'terrain' | 'night';
 const saved = (() => { try { return JSON.parse(localStorage.getItem('atlas:opts') ?? '{}'); } catch { return {}; } })();
 const state = {
+  density: false,
   mode: (saved.mode ?? 'map') as Mode,
   opts: { transit: true, bus: false, cycling: false, buildings3d: true, grid: false, labels: true, contours: false, neutralRoads: false, ...saved.opts } as Omit<StyleOptions, 'theme' | 'terrain'>,
   terrain3d: false,
@@ -246,6 +248,7 @@ function showCity(city: BuiltCity) {
   setDem(city.dem);
   const apply = () => {
     for (const k of SOURCE_KEYS) (map.getSource(k) as GeoJSONSource).setData(city.sources[k] as any);
+    showPopulationGrid(map, city.population, state.density);
     (map.getSource('contours') as GeoJSONSource).setData({ type: 'FeatureCollection', features: [] });
     (map.getSource('selection') as GeoJSONSource).setData({ type: 'FeatureCollection', features: [] });
     // reload DEM tiles for the new heightmap
@@ -367,6 +370,49 @@ async function renderRecent() {
   };
 }
 $('sampleBtn').onclick = () => { const u = new URL(location.href); u.searchParams.set('sample', ''); history.replaceState(null, '', u); void openSample(); };
+const onlineDialog = $<HTMLDialogElement>('onlineCity');
+const onlineName = $<HTMLInputElement>('onlineCityName');
+const onlineStatus = $('onlineCityStatus');
+const onlineOpen = $<HTMLButtonElement>('onlineCityOpen');
+let onlineRequest: AbortController | undefined;
+$('onlineCityBtn').onclick = () => {
+  onlineName.value = '';
+  onlineStatus.hidden = true;
+  onlineOpen.disabled = false;
+  onlineDialog.showModal();
+};
+$('onlineCityCancel').onclick = () => onlineDialog.close();
+onlineDialog.addEventListener('close', () => onlineRequest?.abort());
+onlineDialog.querySelector('form')!.onsubmit = async (event) => {
+  event.preventDefault();
+  const name = onlineName.value.trim();
+  if (!name || onlineOpen.disabled) return;
+  const request = new AbortController();
+  onlineRequest = request;
+  onlineOpen.disabled = true;
+  onlineStatus.hidden = true;
+  let data: ArrayBuffer;
+  try {
+    const response = await fetch(import.meta.env.BASE_URL + 'online-city/map.cs2map.enc', { signal: request.signal, cache: 'no-cache' });
+    if (!response.ok) throw new Error('Map unavailable');
+    const { decryptOnlineCity } = await import('./online-city-crypto.mjs');
+    data = await decryptOnlineCity(await response.arrayBuffer(), name);
+  } catch {
+    if (!request.signal.aborted) {
+      onlineStatus.textContent = t('City not found');
+      onlineStatus.hidden = false;
+      onlineOpen.disabled = false;
+    }
+    return;
+  }
+  if (request.signal.aborted) return;
+  onlineRequest = undefined;
+  onlineDialog.close();
+  pending = null;
+  state.currentFile = '';
+  dropSample();
+  await openBuffer(data, name + '.cs2map');
+};
 // Send to Phone: a page opened from the desktop's QR code receives the city and opens it like a recent one
 const receiveDeps = {
   open: async (map: Blob, file: string) => { await openFile(new File([map], file)); },
@@ -508,8 +554,8 @@ const panelSheet = bottomSheet($('panel'), {
   top: () => 0,
 });
 $('panelClose').onclick = closePanel;
-const row = (k: string, v: string | number | undefined | null) => (v === undefined || v === null || v === '' ? '' : `<div class="p-row"><span>${esc(t(k))}</span><span>${typeof v === 'number' ? v.toLocaleString(locale()) : esc(String(v))}</span></div>`);
-const businessRows = (p: Record<string, string>, showCompanies = false) =>
+const row = (k: string, v: unknown) => (v === undefined || v === null || v === '' ? '' : `<div class="p-row"><span>${esc(t(k))}</span><span>${typeof v === 'number' ? v.toLocaleString(locale()) : esc(String(v))}</span></div>`);
+const businessRows = (p: Record<string, unknown>, showCompanies = false) =>
   (showCompanies ? row('Company', p.companies) : '') +
   row('Address', p.addressLabel || [p.street, p.houseNumber].filter(Boolean).join(' ')) +
   row('Sells', p.sells) + row('Produces', p.produces) + row('Stores', p.stores);
@@ -568,6 +614,7 @@ function describe(f: MapGeoJSONFeature, lng: number, lat: number) {
   if (layer === 'toll') { showToll(p); panelRefresh = () => showToll(p); return; }
   if (layer === 'poi' || layer === 'business-address') {
     const addressOnly = layer === 'business-address';
+    if (p.buildingId !== undefined && describeBuilding(Number(p.buildingId), lng, lat, p.name, addressOnly ? undefined : iconDataUrl(p.poi))) return;
     panel(head(p.name, addressOnly ? t('Address') : L(p.poi) ?? t('Point of interest'), addressOnly ? undefined : iconDataUrl(p.poi)) +
       `<div class="p-rows">${businessRows(p)}${row('Lot area', p.area ? fmtAreaSmall(p.area) : null)}${row('Position', coordText(lng, lat))}</div>`);
     return;
@@ -586,16 +633,32 @@ function tollFeeEditor(id: number, unconfirmed: boolean) {
   return `<div class="p-fee"><div><b>${t('Toll fee')}</b><div class="muted small">${f.source === 'own' ? t('Set for this booth') : f.source === 'default' ? t('Using the city default') : t('Not in the export: add your own')}</div></div>${moneyField(pricing, `data-panel-booth="${id}" aria-label="${esc(t('Toll fee'))}"`, f.source === 'own' ? f.fee : null, ph)}</div>
     <div class="p-fee-foot"><button class="link-btn" data-open-pricing="tolls">${t('All toll fees & currency')}</button></div>`;
 }
+function describeBuilding(id: number, lng: number, lat: number, label?: string, icon?: string): boolean {
+  const c = state.city!;
+  const lot = c.sources.lots.features.find((f) => f.properties.id === id);
+  if (!lot) return false;
+  const p = lot.properties;
+  const bld = c.sources.buildings.features.find((f) => f.properties.id === id);
+  const group = p.grp ?? id;
+  const parts = Number(p.nparts) > 1 ? c.sources.lots.features.filter((f) => (f.properties.grp ?? f.properties.id) === group) : [lot];
+  setSelection(parts.map((f) => ({ type: 'Feature', geometry: f.geometry, properties: {} })));
+  const category = String(p.cat);
+  const title = label || String(p.companies || nameOf({ name: String(p.name ?? ''), named: Number(p.named) }) || L(category) || t('Building'));
+  panelPlace = { label: title, ll: [lng, lat] };
+  const level = /Level ?(\d)/.exec(String(p.icls ?? ''))?.[1];
+  const count = (value: unknown, max: unknown) => typeof value === 'number' && typeof max === 'number' ?
+    value.toLocaleString(locale()) + ' / ' + max.toLocaleString(locale()) : null;
+  const money = (amount: unknown) => typeof amount === 'number' ? pricing.money(amount) : t('Unavailable in the game data');
+  const stats = row('Residents', p.residents) + row('Households', count(p.households, p.capacity)) +
+    (typeof p.households === 'number' ? row('Average rent', money(p.averageRent)) : '') +
+    row('Employees', count(p.employees, p.jobs)) + (typeof p.employees === 'number' ? row('Average salary', money(p.averageSalary)) : '');
+  panel(head(title, L(category) ?? category, icon) + `<div class="p-rows">${businessRows(p, true)}${stats}${row('District', p.district)}${row('Zone / service', String(p.srv ?? '').replace(/([a-z])([A-Z])/g, '$1 $2'))}${row('Class', p.icls)}${row('Level', level)}${row('Lot area', p.area ? fmtAreaSmall(Number(p.area)) : null)}${row('Est. height', bld?.properties.h ? fmtHeight(Number(bld.properties.h)) : null)}</div>${sim.buildingHtml(id)}`);
+  return true;
+}
+
 function describeRest(f: MapGeoJSONFeature, p: any, layer: string, geom: any, lng: number, lat: number) {
   if (layer.startsWith('building') || layer === 'lots') {
-    const c = state.city!;
-    const lot = c.sources.lots.features.find((x) => x.properties.id === p.id) as any;
-    const bld = c.sources.buildings.features.find((x) => x.properties.id === p.id) as any;
-    // a multi-part asset (station halls, stadium stands…) is selected as a whole
-    const grp = p.grp ?? p.id, parts = Number(p.nparts) > 1 ? c.sources.lots.features.filter((x) => (x.properties.grp ?? x.properties.id) === grp) as any[] : lot ? [lot] : [];
-    setSelection(parts.map((x) => ({ type: 'Feature', geometry: x.geometry, properties: {} })));
-    const level = /Level ?(\d)/.exec(p.icls ?? '')?.[1];
-    panel(head(nameOf(p) || L(p.cat) || t('Building'), L(p.cat) ?? p.cat) + `<div class="p-rows">${businessRows(p, true)}${row('District', p.district)}${row('This part', p.part ? p.asset : null)}${row('Buildings in asset', Number(p.nparts) > 1 ? p.nparts : null)}${row('Zone / service', String(p.srv ?? '').replace(/([a-z])([A-Z])/g, '$1 $2'))}${row('Class', p.icls)}${p.named && !p.part ? row('Asset', p.asset) : ''}${row('Level', level)}${row('Lot area', p.area ? fmtAreaSmall(p.area) : null)}${row('Est. height', bld?.properties.h ? fmtHeight(bld.properties.h) : null)}${row('Asset ID', p.id)}</div>${sim.buildingHtml(Number(p.id))}`);
+    describeBuilding(Number(p.id), lng, lat);
     return;
   }
   if (layer === 'water') { panel(head(t('Water'), t('Lake, river or sea')) + `<div class="p-rows">${row('Position', coordText(lng, lat))}</div>`, '#a2cdf3'); return; }
@@ -954,6 +1017,8 @@ window.addEventListener('keydown', (e) => {
 
 // ------------------------------------------------------------------ chips, layers, controls
 function syncUi() {
+  $('optPopulationRow').hidden = !state.city?.population;
+  $<HTMLInputElement>('optPopulation').checked = state.density;
   document.querySelectorAll<HTMLElement>('#chips .chip[data-opt]').forEach((c) => {
     const k = c.dataset.opt as keyof typeof state.opts;
     c.classList.toggle('on', !!state.opts[k] || (k === 'contours' && state.mode === 'terrain'));
@@ -996,6 +1061,10 @@ document.querySelectorAll<HTMLElement>('.layer-opt').forEach((b) => (b.onclick =
 $('optLabels').onchange = (e) => { state.opts.labels = (e.target as HTMLInputElement).checked; applyStyle(); };
 $('opt3dTerrain').onchange = (e) => { state.terrain3d = (e.target as HTMLInputElement).checked; set3dTerrain(); };
 $('optNeutral').onchange = (e) => { state.opts.neutralRoads = (e.target as HTMLInputElement).checked; applyStyle(); };
+$('optPopulation').onchange = (e) => {
+  state.density = (e.target as HTMLInputElement).checked;
+  if (map.getLayer(populationLayer)) map.setLayoutProperty(populationLayer, 'visibility', state.density ? 'visible' : 'none');
+};
 // traffic display mode (Layers): the game's value per road by default; per direction is an opt-in estimate
 sim.setTrafficMode(trafficMode);
 sim.setTrafficStyle(trafficStyle);

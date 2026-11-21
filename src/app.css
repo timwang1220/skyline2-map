@@ -191,8 +191,17 @@ h1.brand { margin: 0; }
 .start-lede { font-size: 18px; line-height: 1.55; color: var(--s-muted); margin: 0 auto 34px; max-width: 520px; text-wrap: pretty; }
 .start-actions { display: flex; flex-direction: column; align-items: center; gap: 14px; }
 .start-buttons { display: flex; gap: 12px; flex-wrap: wrap; justify-content: center; }
+.start-btn.online { background: #bd4d0e; color: #fff; border: 1px solid #bd4d0e; }
+.start-btn.online:hover { background: #9f3f09; border-color: #9f3f09; }
+.online-city { width: min(360px, calc(100% - 32px)); padding: 22px; color: var(--ink); border: 0; }
+.online-city::backdrop { background: #0006; }
+.online-city form { display: grid; gap: 12px; }
+.online-city h2, .online-city p { margin: 0; }
+.online-city input { padding: 8px 10px; border: 1px solid #8c939e; border-radius: 6px; font: inherit; }
+.online-city-actions { display: flex; justify-content: flex-end; gap: 8px; }
 .start-btn { height: 52px; padding: 0 26px; border-radius: 999px; display: inline-flex; align-items: center; justify-content: center; gap: 10px; font-size: 16px; font-weight: 600; cursor: pointer; transition: background-color .15s, box-shadow .15s, transform .15s; }
 .start-btn svg { width: 20px; height: 20px; flex: none; }
+@media (min-width: 861px) { .start-buttons .start-btn { padding-inline: 13px; font-size: 14px; } }
 .start-btn.primary { background: var(--s-accent); color: #fff; box-shadow: 0 1px 2px rgba(26,115,232,.3), 0 4px 14px rgba(26,115,232,.28); }
 .start-btn.primary:hover { background: var(--s-accent-ink); transform: translateY(-1px); }
 .start-btn.primary:focus-within { outline: 2px solid var(--s-accent); outline-offset: 3px; }

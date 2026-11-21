@@ -1065,4 +1065,12 @@ export const RU: Record<string, string> = {
   "Cities: Skylines II adaptation of": "Адаптация для Cities: Skylines II на основе",
   "Source code for this version": "Исходный код этой версии",
   "Only .cs2map files exported by CS2MapView are supported.": "Поддерживаются только файлы .cs2map, экспортированные через CS2MapView.",
+  "Use online city": "Открыть онлайн-город",
+  "City name": "Название города",
+  "City not found": "Город не найден",
+  "Population density": "Плотность населения",
+  "Employees": "Работники",
+  "Average rent": "Средняя аренда",
+  "Average salary": "Средняя зарплата",
+  "Unavailable in the game data": "Нет данных в игре",
 };

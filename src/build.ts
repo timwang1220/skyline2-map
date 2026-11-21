@@ -24,6 +24,7 @@ export interface BuiltCity {
     lines: { id: number; name: string; type: string; color: string; stops: number; bbox: [number, number, number, number] | null; stopNames?: string[]; fare?: number; shape?: 'both' | 'loop'; /** part of the path is rebuilt from the network, not exported (.cmm) */ estimated?: true }[];
   };
   sources: Record<string, FC>;
+  population?: CityData['population'];
   dem: { surface: Float32Array; size: number };
   search: SearchEntry[];
   /** station name per stop node (kept in the worker for routing) */
@@ -519,12 +520,12 @@ export function buildCity(city: CityData, progress: (msg: string) => void = () =
       ...(b.products?.stores ? { stores: b.products.stores } : {}) };
     if (business && b.companies?.length) {
       const center = toLngLat(cx, cz);
-      places.push({ type: 'Feature', properties: { ...businessInfo, kind: 'poi', poi: business, name: companies,
+      places.push({ type: 'Feature', properties: { ...businessInfo, buildingId: b.id, kind: 'poi', poi: business, name: companies,
         rank: companyIsChosenName ? 4 : 6, area: Math.round(area) }, geometry: { type: 'Point', coordinates: center } });
       for (const name of b.companies) search.push({ name, kind: 'poi', sub: business, center, zoom: 17 });
     } else if (addressOnly && !head) {
       const center = toLngLat(cx, cz);
-      places.push({ type: 'Feature', properties: { ...businessInfo, kind: 'business-address', name: addressLabel, area: Math.round(area) },
+      places.push({ type: 'Feature', properties: { ...businessInfo, buildingId: b.id, kind: 'business-address', name: addressLabel, area: Math.round(area) },
         geometry: { type: 'Point', coordinates: center } });
       search.push({ name: addressLabel, kind: 'poi', sub: 'address', center, zoom: 18 });
     }
@@ -541,7 +542,7 @@ export function buildCity(city: CityData, progress: (msg: string) => void = () =
     const nm = b.myname || head?.myname || b.individualName || (addressOnly ? addressLabel : undefined) ||
       (head ? cleanName(head.name) : cat.poi && b.exportLabel ? b.exportLabel : asset);
     const gid = headId ?? b.id;
-    const base = { ...businessInfo, id: b.id, cat: cat.cat, name: nm, asset, named: b.myname || head?.myname ? 1 : 0, srv: b.srv, icls: b.icls, area: Math.round(area), district: districtAt(cx, cz), part: head ? 1 : 0, grp: gid, nparts: groupSize.get(gid) ?? 1 };
+    const base = { ...businessInfo, ...b.stats, id: b.id, cat: cat.cat, name: nm, asset, named: b.myname || head?.myname ? 1 : 0, srv: b.srv, icls: b.icls, area: Math.round(area), district: districtAt(cx, cz), part: head ? 1 : 0, grp: gid, nparts: groupSize.get(gid) ?? 1 };
     lots.push({ type: 'Feature', id: b.id, properties: base, geometry: { type: 'Polygon', coordinates: [ordered.map(llxy)] } });
     if (cat.inset < 1 && cat.height > 0) {
       const r = rnd(gid); // one height factor per asset, so its parts read as one building
@@ -560,7 +561,7 @@ export function buildCity(city: CityData, progress: (msg: string) => void = () =
       poiSeen.push({ name: nm, x: cx, z: cz, poi, area });
       let rank = poi === 'hospital' && cat.height > 20 ? 3 : poi === 'landmark' ? (area > 8000 ? 4 : 5) : poi === 'school' && /University/i.test(b.icls) ? 4 : 6;
       if (b.myname) rank = Math.min(rank, 4); // names the player chose get shown early
-      places.push({ type: 'Feature', properties: { kind: 'poi', poi, name: nm, rank, area: Math.round(area) }, geometry: { type: 'Point', coordinates: toLngLat(cx, cz) } });
+      places.push({ type: 'Feature', properties: { buildingId: b.id, kind: 'poi', poi, name: nm, rank, area: Math.round(area) }, geometry: { type: 'Point', coordinates: toLngLat(cx, cz) } });
       search.push({ name: nm, kind: 'poi', sub: poi, center: toLngLat(cx, cz), zoom: 17 });
     }
   }
@@ -909,6 +910,7 @@ export function buildCity(city: CityData, progress: (msg: string) => void = () =
     meta: { name: city.name, generated: city.generated, bounds: [toLngLat(-HALF, -HALF), toLngLat(HALF, HALF)], stats, elevation: { min: emin, max: emax }, lines,
       ...(city.extras ? { source: { format: city.extras.source, producer: city.extras.producer, lanes: city.extras.caps.lanes, exactDistricts: !!city.extras.districtGrid } } : {}) },
     sources: { land: fc(land), water: fc(water), lots: fc(lots), buildings: fc(blds), roads: fc(roads), rails: fc(rails), transit: fc(transit), places: fc(places), roadLabels: fc(roadLabels), grid: fc(grid), districts: fc(districtFeats) },
+    population: city.population,
     dem: { surface: T.surface, size: n },
     districtField: (() => {
       // land mask on the same grid: the regions fade out at the shore (no samples on open water)

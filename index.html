@@ -119,6 +119,7 @@
       <label class="switch-row"><input type="checkbox" id="opt3dTerrain" /> <span data-i18n="3D terrain">3D terrain</span></label>
       <label class="switch-row"><input type="checkbox" id="optNeutral" /> <span data-i18n="Neutral road colours">Neutral road colours</span></label>
       <label class="switch-row" id="optTrafficRow" hidden><input type="checkbox" id="optTraffic" /> <span><span data-i18n="Traffic">Traffic</span><span class="switch-hint" id="optTrafficHint" data-i18n="From a save: add one in Simulation data">From a save: add one in Simulation data</span></span></label>
+      <label class="switch-row" id="optPopulationRow" hidden><input type="checkbox" id="optPopulation" /> <span data-i18n="Population density">Population density</span></label>
       <div class="traffic-mode" id="optTrafficMode" hidden>
         <div class="mode-switch" role="radiogroup" aria-label="Traffic display" data-i18n-aria="Traffic display">
           <button type="button" role="radio" data-tmode="combined" data-i18n="Combined">Combined</button>
@@ -174,6 +175,10 @@
                 <button class="start-btn ghost" id="sampleBtn" type="button">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 21h18"/><path d="M5 21V9l5-3v15"/><path d="M10 21V4l9 4v13"/><path d="M14 10h2M14 14h2"/></svg>
                   <span data-i18n="Try the original sample city">Try the original sample city</span>
+                </button>
+                <button class="start-btn online" id="onlineCityBtn" type="button">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a17 17 0 0 1 0 18 17 17 0 0 1 0-18z"/></svg>
+                  <span data-i18n="Use online city">Use online city</span>
                 </button>
               </div>
               <p class="start-hint"><span data-i18n="or drop it anywhere on this page">or drop it anywhere on this page</span> <span class="start-formats">(.cs2map)</span></p>
@@ -232,6 +237,18 @@
   <button id="dirFab" class="fab" hidden title="Directions" aria-label="Directions" data-i18n-title="Directions" data-i18n-aria="Directions"><svg viewBox="0 0 24 24"><path d="M21.7 11.3l-9-9a1 1 0 0 0-1.4 0l-9 9a1 1 0 0 0 0 1.4l9 9a1 1 0 0 0 1.4 0l9-9a1 1 0 0 0 0-1.4zM14 14.5V12h-4v3H8v-4a1 1 0 0 1 1-1h5V7.5l3.5 3.5-3.5 3.5z"/></svg></button>
 
   <div id="dropOverlay" hidden><div data-i18n="Drop to open map">Drop to open map</div></div>
+  <dialog id="onlineCity" class="card online-city" aria-labelledby="onlineCityTitle">
+    <form>
+      <h2 id="onlineCityTitle" data-i18n="Use online city">Use online city</h2>
+      <label for="onlineCityName" data-i18n="City name">City name</label>
+      <input id="onlineCityName" type="text" autocomplete="off" spellcheck="false" required autofocus />
+      <p id="onlineCityStatus" role="status" hidden></p>
+      <div class="online-city-actions">
+        <button id="onlineCityCancel" type="button" class="pill" data-i18n="Cancel">Cancel</button>
+        <button id="onlineCityOpen" type="submit" class="pill primary" data-i18n="Open">Open</button>
+      </div>
+    </form>
+  </dialog>
   <div id="toast" role="status" hidden></div>
 
   <script type="module" src="/src/main.ts"></script>

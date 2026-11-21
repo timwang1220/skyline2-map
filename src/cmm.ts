@@ -465,6 +465,7 @@ export async function readCmm(bytes: Uint8Array, cat: LaneCatalog, nativeTerrain
     const exportLabel = cs2 ? str(b.display_name?.text).trim() : undefined;
     return { id, name: str(b.name), myname: b.display_name?.source === 'custom' ? str(b.display_name.text).trim() : '', srv: str(b.service), subsrv: str(b.sub_service), icls: str(b.icls),
       ...(companies.length ? { companies: [...new Set<string>(companies)] } : {}), companyKind, products, exportLabel,
+      stats: nativeTerrain ? b.skyline_stats : undefined,
       individualName: b.individual_name === true ? exportLabel : undefined,
       ...(houseNumber ? { address: { number: houseNumber, street: str(b.street_name) } } : {}),
       parent: Number(b.parent_building_id) || 0, sub: Number(b.sub_building_id) || 0, pts: fp.map(([x, z]) => ({ x, y, z })) };
@@ -495,7 +496,7 @@ export async function readCmm(bytes: Uint8Array, cat: LaneCatalog, nativeTerrain
     name: str(d.metadata?.origin?.source_name) || 'Untitled city',
     // "2026-11-14 12:52:26" (game-local time): ISO form so every browser parses it
     generated: str(d.metadata?.exported_at).replace(/^(\d{4}-\d\d-\d\d) (\d\d:\d\d:\d\d)$/, '$1T$2'),
-    seaLevel, nodes, segs, buildings, segTypes, districts, parks, transports, height, water, terrainSize: T, forest, forestSize,
+    seaLevel, nodes, segs, buildings, segTypes, districts, parks, transports, height, water, terrainSize: T, forest, forestSize, population: nativeTerrain?.population,
     extras: {
       source: 'cmm', caps: { lanes: true, buildingParts: true }, producer: nativeTerrain ? 'CS2MapView' : 'CSLModernMap', districtGrid, districtStats: new Map(), stopInfo,
       oneway, carSpeed, inferredLegs, factsOnly, cmm: info,

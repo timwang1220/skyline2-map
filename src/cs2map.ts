@@ -1,8 +1,9 @@
 // Normalize gansaku CS2MapView 0.1.1 exports to the existing CS2-compatible CMM reader.
 import { readExportMembers } from './vellummap';
 import { HALF } from './geo';
+import type { BuildingStats, PopulationGrid } from './parse';
 
-export interface Cs2Terrain { height: Float32Array<ArrayBuffer>; water: Float32Array<ArrayBuffer> }
+export interface Cs2Terrain { height: Float32Array<ArrayBuffer>; water: Float32Array<ArrayBuffer>; population?: PopulationGrid }
 type Point = [number, number, number];
 type XY = [number, number];
 type Network = { id: number; kind: string; start_id: number; end_id: number; geometry: Point[]; name: string; source_raw: string; path_segment_ids?: number[] };
@@ -81,7 +82,7 @@ export async function normalizeCs2Map(bytes: Uint8Array, fileTime: string) {
   const data = await readExportMembers(bytes, {
     'main.xml': MB, 'roads.xml': 32 * MB, 'rails.xml': 24 * MB, 'buildings.xml': 32 * MB,
     'districts.xml': 16 * MB, 'transports.xml': 32 * MB, 'terrain.dat': 64 * MB, 'water.dat': 64 * MB,
-  }, { 'skyline-businesses.xml': 24 * MB, 'skyline-transit.xml': MB });
+  }, { 'skyline-businesses.xml': 24 * MB, 'skyline-transit.xml': MB, 'skyline-building-stats.xml': 24 * MB });
   const xml = (name: string, root: string) => {
     const result = new DOMParser().parseFromString(new TextDecoder('utf-8', { fatal: true }).decode(data.get(name + '.xml')), 'application/xml');
     if (result.documentElement.localName !== root || result.doctype) throw new Error(`Invalid CS2MapView ${name}.xml`);
@@ -91,6 +92,29 @@ export async function normalizeCs2Map(bytes: Uint8Array, fileTime: string) {
   const buildings = xml('buildings', 'CS2BuildingsData'), districts = xml('districts', 'CS2DistrictsData'), transit = xml('transports', 'CS2TransportLineData');
   if (text(main, 'FileVersion').trim() !== '0.1.1.0') throw new Error('This viewer supports CS2MapView export format 0.1.1.0');
   const terrain: Cs2Terrain = { height: sampleGrid(data.get('terrain.dat')!, child(main, 'Terrain'), true), water: sampleGrid(data.get('water.dat')!, child(main, 'Water'), false) };
+  const stats = new Map<number, BuildingStats>();
+  if (data.has('skyline-building-stats.xml')) {
+    const root = xml('skyline-building-stats', 'SkylineBuildingStats');
+    if (attr(root, 'version') === '1') {
+      for (const record of root.querySelectorAll(':scope > Building')) {
+        const b: BuildingStats = {};
+        for (const key of ['residents', 'households', 'capacity', 'averageRent', 'employees', 'jobs', 'averageSalary'] as const) {
+          if (record.hasAttribute(key)) b[key] = numberAttr(record, key);
+        }
+        stats.set(id(record), b);
+      }
+      const grid = root.querySelector(':scope > Population');
+      if (grid) {
+        const width = numberAttr(grid, 'width'), height = numberAttr(grid, 'height');
+        const west = numberAttr(grid, 'west'), south = numberAttr(grid, 'south'), cell = numberAttr(grid, 'cell');
+        const values = Uint8Array.from(atob(grid.textContent?.trim() ?? ''), (v) => v.charCodeAt(0));
+        if ([width, height].some((n) => !Number.isInteger(n) || n < 2 || n > 256) || values.length !== width * height || cell <= 0) throw new Error('Invalid population grid');
+        const colors = ['low', 'middle', 'high'].map((key) => attr(grid, key));
+        terrain.population = { width, height, west, south, cell, values,
+          colors: colors.every((color) => /^[a-f0-9]{8}$/i.test(color)) ? colors as [string, string, string] : undefined };
+      }
+    }
+  }
   const nodes = new Map<number, { id: number; pos: Point; mode_hint: string }>();
   const networks: Network[] = [];
   const prefabs = new Map(children(roads, 'RoadPrefabs').map((e) => [id(e), e]));
@@ -149,7 +173,7 @@ export async function normalizeCs2Map(bytes: Uint8Array, fileTime: string) {
       return [activity, [...new Set(names.filter(Boolean))].join(' / ')];
     }));
     const prefabName = attr(prefab, 'name');
-    return { id: buildingId, name: prefabName, service: services.find(([flag]) => flags & flag)?.[1] ?? '', footprint, base_elevation_m: y,
+    return { id: buildingId, name: prefabName, service: services.find(([flag]) => flags & flag)?.[1] ?? '', footprint, base_elevation_m: y, skyline_stats: stats.get(buildingId),
       individual_name: !!(flags & 0x20000000) && /signature/i.test(prefabName),
       ...(record ? { company_kind: attr(record, 'kind'), company_names: tenants.map((tenant) => attr(tenant, 'name')).filter(Boolean),
         house_number: attr(record, 'number'), street_name: attr(record, 'road'), business_products: products } : {}),

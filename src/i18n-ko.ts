@@ -1065,4 +1065,12 @@ export const KO: Record<string, string> = {
   "Cities: Skylines II adaptation of": "Cities: Skylines II 버전의 원본",
   "Source code for this version": "이 버전의 소스 코드",
   "Only .cs2map files exported by CS2MapView are supported.": "CS2MapView로 내보낸 .cs2map 파일만 지원합니다.",
+  "Use online city": "온라인 도시 사용",
+  "City name": "도시 이름",
+  "City not found": "도시를 찾을 수 없습니다",
+  "Population density": "인구 밀도",
+  "Employees": "직원",
+  "Average rent": "평균 임대료",
+  "Average salary": "평균 임금",
+  "Unavailable in the game data": "게임 데이터에 없음",
 };
