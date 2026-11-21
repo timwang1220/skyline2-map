@@ -12,7 +12,7 @@ File import accepts only `.cs2map` exports in CS2MapView 0.1.1's format. The ori
 
 ## Run locally
 
-The optional **Use online city** entry downloads an encrypted map from this site's `online-city/map.cs2map.enc` and opens it in the browser using the city name. A guessable city name offers limited privacy. Maps with the newer export extension can also include population density, household and employment statistics.
+The optional **Use online city** entry downloads an encrypted map from this site's `online-city/map.cs2map.enc` and opens it in the browser using the configured access code. A guessable access code offers limited privacy. Maps with the newer export extension can also include population density, household and employment statistics.
 
 Install dependencies with `npm ci` and run `npm run dev`. Use Node.js 20.19+ or 22.12+ (CI uses Node 24). Run `npm run build` for a production build in `dist/`, or `npm run preview` to serve that build locally.
 
