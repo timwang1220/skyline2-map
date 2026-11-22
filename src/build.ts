@@ -540,7 +540,7 @@ export function buildCity(city: CityData, progress: (msg: string) => void = () =
   const lots: Feature[] = [];
   const blds: Feature[] = [];
   const places: Feature[] = [];
-  const communities = new Map<string, { name: string; buildings: { id: number; number: number; x: number; z: number; address: string; labelType?: string }[] }>();
+  const communities = new Map<string, { name: string; buildings: { id: number; number: number; name: string; x: number; z: number; address: string; labelType?: string }[] }>();
   const poiSeen: { name: string; x: number; z: number; poi: string; area: number }[] = [];
   const namedStations: { name: string; x: number; z: number; mode: string; modes: Set<string>; rings: XY[][]; used?: boolean }[] = [];
   const byId = new Map(city.buildings.map((b) => [b.id, b]));
@@ -653,7 +653,8 @@ export function buildCity(city: CityData, progress: (msg: string) => void = () =
     }
     if (community) {
       const group = communities.get(community.id) ?? { name: community.name, buildings: [] };
-      group.buildings.push({ id: b.id, number: community.number, x: cx, z: cz, address, labelType });
+      const name = b.myname || (b.exportLabel?.startsWith('Assets.') ? '' : b.exportLabel) || `${group.name}${community.number}号楼`;
+      group.buildings.push({ id: b.id, number: community.number, name, x: cx, z: cz, address, labelType });
       communities.set(community.id, group);
       continue;
     }
@@ -681,10 +682,11 @@ export function buildCity(city: CityData, progress: (msg: string) => void = () =
     places.push({ type: 'Feature', properties: { kind: 'community', communityId, name: group.name }, geometry: { type: 'Point', coordinates: center } });
     search.push({ name: group.name, kind: 'poi', sub: 'residential', center, zoom: 16.8, labelType: 'community' });
     for (const b of members) {
-      const position = toLngLat(b.x, b.z), numberLabel = `${b.number}号楼`;
+      const position = toLngLat(b.x, b.z);
+      const numberLabel = b.name.startsWith(group.name) ? b.name.slice(group.name.length) : b.name;
       places.push({ type: 'Feature', properties: { kind: 'community-building', buildingId: b.id, name: numberLabel, number: b.number },
         geometry: { type: 'Point', coordinates: position } });
-      search.push({ name: group.name + numberLabel, kind: 'poi', sub: 'residential', center: position, zoom: 18, buildingId: b.id, address: b.address, labelType: b.labelType });
+      search.push({ name: b.name, kind: 'poi', sub: 'residential', center: position, zoom: 18, buildingId: b.id, address: b.address, labelType: b.labelType });
     }
   }
   // Station footprints. A named station is its whole asset: main hall, extra halls and platform/stair props,
