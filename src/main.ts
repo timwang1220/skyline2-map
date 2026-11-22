@@ -28,6 +28,7 @@ import { loadContext, saveContext, sanitizeContext, type CityContext } from './c
 import { showDistrictGlow, clearDistrictGlow } from './district-glow';
 import { t, tn, initLang, setLang, onLang, applyStatic, getLang, LANGS, locale, fmtFixed, type Lang } from './i18n';
 import { getUnits, setUnits, onUnits, imperial, fmtLength, fmtHeight, fmtWidth, fmtAreaSmall, fmtAreaLarge, fmtSpeed, type Units } from './units';
+import { downloadOnlineCity, onlineCitySources } from './online-city-download';
 
 /** fares and toll prices that came with a city (Send to Phone, a .skysave): checked like an imported context file, and
  *  kept only if this browser has none for that city or older ones */
@@ -375,11 +376,18 @@ const onlineDialog = $<HTMLDialogElement>('onlineCity');
 const onlineName = $<HTMLInputElement>('onlineCityName');
 const onlineRemember = $<HTMLInputElement>('onlineCityRemember');
 const onlineStatus = $('onlineCityStatus');
+const onlineProgress = $('onlineCityProgress');
 const onlineOpen = $<HTMLButtonElement>('onlineCityOpen');
 let onlineRequest: AbortController | undefined;
 const onlineButton = $<HTMLButtonElement>('onlineCityBtn');
 const onlineForget = $<HTMLButtonElement>('onlineCityForget');
 const onlineStorageKey = `skyline:online-city:${import.meta.env.BASE_URL}`;
+const onlineSources = onlineCitySources(import.meta.env.BASE_URL, import.meta.env.VITE_SOURCE_REVISION, import.meta.env.VITE_SOURCE_REPOSITORY);
+
+function setOnlineStatus(element: HTMLElement, message: string) {
+  if (element.textContent !== message) element.textContent = message;
+  element.hidden = !message;
+}
 
 function rememberedOnlineCode() {
   try { return localStorage.getItem(onlineStorageKey); } catch { return null; }
@@ -395,8 +403,8 @@ function rememberOnlineCode(code: string | null) {
 function showOnlineDialog(failed = false) {
   onlineName.value = '';
   onlineRemember.checked = false;
-  onlineStatus.textContent = failed ? 'City not found' : '';
-  onlineStatus.hidden = !failed;
+  setOnlineStatus(onlineProgress, '');
+  setOnlineStatus(onlineStatus, failed ? 'City not found' : '');
   onlineDialog.showModal();
 }
 
@@ -404,6 +412,7 @@ onlineForget.hidden = !rememberedOnlineCode();
 onlineForget.onclick = () => {
   onlineRequest?.abort();
   rememberOnlineCode(null);
+  setOnlineStatus(onlineProgress, '');
   onlineButton.focus();
 };
 onlineButton.onclick = () => {
@@ -422,8 +431,7 @@ onlineDialog.querySelector('form')!.onsubmit = (event) => {
   const name = onlineName.value.trim();
   if (onlineOpen.disabled) return;
   if (!name) {
-    onlineStatus.textContent = 'Enter the city access code.';
-    onlineStatus.hidden = false;
+    setOnlineStatus(onlineStatus, 'Enter the city access code.');
     return;
   }
   void openOnlineCity(name, false);
@@ -435,24 +443,23 @@ async function openOnlineCity(code: string, remembered: boolean) {
   onlineRequest = request;
   const save = !remembered && onlineRemember.checked;
   onlineOpen.disabled = onlineButton.disabled = true;
-  onlineStatus.hidden = true;
+  const status = (message: string) => setOnlineStatus(remembered ? onlineProgress : onlineStatus, message);
+  let downloaded = false;
   let data: ArrayBuffer;
   try {
-    const revision = import.meta.env.VITE_SOURCE_REVISION;
-    const mapUrl = import.meta.env.BASE_URL + 'online-city/map.cs2map.enc' + (revision ? `?v=${encodeURIComponent(revision)}` : '');
-    const response = await fetch(mapUrl, { signal: request.signal, cache: 'no-cache' });
-    if (!response.ok) throw new Error('Map unavailable');
+    const encrypted = await downloadOnlineCity(onlineSources, request.signal, status);
+    request.signal.throwIfAborted();
+    downloaded = true;
+    status('Unlocking map…');
     const { decryptOnlineCity } = await import('./online-city-crypto.mjs');
-    data = await decryptOnlineCity(await response.arrayBuffer(), code);
+    data = await decryptOnlineCity(encrypted, code);
   } catch (error) {
-    if (!request.signal.aborted) {
-      if (remembered) {
-        if (error instanceof DOMException && error.name === 'OperationError') rememberOnlineCode(null);
-        showOnlineDialog(true);
-      } else {
-        onlineStatus.textContent = 'City not found';
-        onlineStatus.hidden = false;
-      }
+    if (request.signal.aborted) return;
+    if (remembered && error instanceof DOMException && error.name === 'OperationError') {
+      rememberOnlineCode(null);
+      showOnlineDialog(true);
+    } else {
+      status(downloaded ? 'City not found' : 'Could not download the map. Please try again.');
     }
     return;
   } finally {
@@ -460,6 +467,7 @@ async function openOnlineCity(code: string, remembered: boolean) {
     onlineOpen.disabled = onlineButton.disabled = false;
   }
   if (request.signal.aborted) return;
+  status('');
   if (save) rememberOnlineCode(code);
   if (onlineDialog.open) onlineDialog.close();
   pending = null;
