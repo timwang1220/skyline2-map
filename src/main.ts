@@ -657,7 +657,8 @@ function describeBuilding(id: number, lng: number, lat: number, label?: string, 
   const stats = row('Residents', p.residents) + row('Households', count(p.households, p.capacity)) +
     (typeof p.households === 'number' ? row('Average rent', money(p.averageRent)) : '') +
     row('Employees', count(p.employees, p.jobs)) + (typeof p.employees === 'number' ? row('Average salary', money(p.averageSalary)) : '');
-  panel(head(title, L(category) ?? category, icon) + `<div class="p-rows">${businessRows(p, true)}${stats}${row('District', p.district)}${row('Zone / service', String(p.srv ?? '').replace(/([a-z])([A-Z])/g, '$1 $2'))}${row('Class', p.icls)}${row('Level', level)}${row('Lot area', p.area ? fmtAreaSmall(Number(p.area)) : null)}${row('Est. height', bld?.properties.h ? fmtHeight(Number(bld.properties.h)) : null)}</div>${sim.buildingHtml(id)}`);
+  const height = bld?.properties.h;
+  panel(head(title, L(category) ?? category, icon) + `<div class="p-rows">${businessRows(p, true)}${stats}${row('District', p.district)}${row('Zone / service', String(p.srv ?? '').replace(/([a-z])([A-Z])/g, '$1 $2'))}${row('Class', p.icls)}${row('Level', level)}${row('Lot area', p.area ? fmtAreaSmall(Number(p.area)) : null)}${row(bld?.properties.modelHeight ? 'Building height' : 'Est. height', height ? fmtHeight(Number(height)) : null)}</div>${sim.buildingHtml(id)}`);
   return true;
 }
 

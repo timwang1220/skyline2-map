@@ -163,7 +163,7 @@ export async function normalizeCs2Map(bytes: Uint8Array, fileTime: string) {
   const buildingsById = new Map(exportedBuildings.map((e) => [id(e), e]));
   const footprints = exportedBuildings.map((e) => {
     const prefab = required(buildingPrefabs.get(numberAttr(e, 'prefab')) ?? null, 'building prefab');
-    const [x, y, z] = xyz(child(e, 'Position')), [w, , d] = xyz(child(prefab, 'Size')), rotation = child(e, 'Rotation');
+    const [x, y, z] = xyz(child(e, 'Position')), [w, h, d] = xyz(child(prefab, 'Size')), rotation = child(e, 'Rotation');
     const angle = 2 * Math.atan2(numberAttr(rotation, 'y'), numberAttr(rotation, 'w')), c = Math.cos(angle), s = Math.sin(angle);
     const footprint = [[-w/2, -d/2], [w/2, -d/2], [w/2, d/2], [-w/2, d/2]].map(([dx, dz]) => [x + dx*c + dz*s, z - dx*s + dz*c]);
     const flags = numberAttr(e, 'type');
@@ -183,7 +183,7 @@ export async function normalizeCs2Map(bytes: Uint8Array, fileTime: string) {
     // Old exports have no upgrade marker. Require a building service and a distinct game label.
     const independentAnnex = !!parent && !upgrades.has(buildingId) && services.some(([flag]) => flags & flag) &&
       !!name && !name.startsWith('Assets.') && name !== attr(parent, 'name').trim();
-    return { id: buildingId, name: prefabName, service: services.find(([flag]) => flags & flag)?.[1] ?? '', footprint, base_elevation_m: y, skyline_stats: stats.get(buildingId),
+    return { id: buildingId, name: prefabName, service: services.find(([flag]) => flags & flag)?.[1] ?? '', footprint, base_elevation_m: y, height_m: h, skyline_stats: stats.get(buildingId),
       independent_annex: independentAnnex,
       individual_name: !!(flags & 0x20000000) && (!!(flags & 0x1000000) || /signature/i.test(prefabName)) &&
         !!name && !name.startsWith('Assets.'),

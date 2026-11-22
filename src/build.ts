@@ -599,8 +599,8 @@ export function buildCity(city: CityData, progress: (msg: string) => void = () =
       const r = rnd(gid); // one height factor per asset, so its parts read as one building
       const f = Math.min(0.95, cat.inset * (0.92 + rnd(b.id) * 0.14));
       const inner = ordered.map(([x, z]) => llxy([cx + (x - cx) * f, cz + (z - cz) * f]));
-      const h = Math.round(cat.height * (0.75 + r * 0.5) * (cat.cat === 'residential_high' || cat.cat === 'office' || cat.cat === 'commercial' ? Math.min(1.6, Math.max(0.8, Math.sqrt(area) / 26)) : 1));
-      blds.push({ type: 'Feature', id: b.id, properties: { ...base, h }, geometry: { type: 'Polygon', coordinates: [inner] } });
+      const h = b.modelHeight ?? Math.round(cat.height * (0.75 + r * 0.5) * (cat.cat === 'residential_high' || cat.cat === 'office' || cat.cat === 'commercial' ? Math.min(1.6, Math.max(0.8, Math.sqrt(area) / 26)) : 1));
+      blds.push({ type: 'Feature', id: b.id, properties: { ...base, h, ...(b.modelHeight !== undefined ? { modelHeight: true } : {}) }, geometry: { type: 'Polygon', coordinates: [inner] } });
     }
     // stations the player named are attached to the transit markers below
     if (b.myname && stMode && !head && !specialPoi) continue;

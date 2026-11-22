@@ -187,6 +187,7 @@ export const RU: Record<string, string> = {
   "Asset": "Объект",
   "Level": "Уровень",
   "Est. height": "Прим. высота",
+  "Building height": "Высота здания",
   "Asset ID": "ИД объекта",
   "Water": "Вода",
   "Lake, river or sea": "Озеро, река или море",

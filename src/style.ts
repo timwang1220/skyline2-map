@@ -185,7 +185,7 @@ export function buildStyle(o: StyleOptions, fontBase: string): StyleSpecificatio
       id: 'building-3d', type: 'fill-extrusion', source: 'buildings', minzoom: 15, layout: { visibility: vis(o.buildings3d) },
       paint: {
         'fill-extrusion-color': extFill,
-        'fill-extrusion-height': ['interpolate', ['linear'], ['zoom'], 15, 0, 16, ['get', 'h']],
+        'fill-extrusion-height': ['interpolate', ['linear'], ['zoom'], 15, ['case', ['has', 'modelHeight'], ['get', 'h'], 0], 16, ['get', 'h']],
         'fill-extrusion-opacity': 0.92,
         'fill-extrusion-vertical-gradient': true,
       },

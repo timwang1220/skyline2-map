@@ -187,6 +187,7 @@ export const KO: Record<string, string> = {
   "Asset": "에셋",
   "Level": "레벨",
   "Est. height": "예상 높이",
+  "Building height": "건물 높이",
   "Asset ID": "에셋 ID",
   "Water": "수역",
   "Lake, river or sea": "호수, 강 또는 바다",
