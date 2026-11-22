@@ -713,7 +713,9 @@ function describeBuilding(id: number, lng: number, lat: number, label?: string, 
   const parts = c.sources.lots.features.filter((f) => (f.properties.grp ?? f.properties.id) === group || f.properties.parentGroup === group);
   setSelection(parts.map((f) => ({ type: 'Feature', geometry: f.geometry, properties: {} })));
   const category = String(p.cat);
-  const title = label || String(p.companies || nameOf({ name: String(p.name ?? ''), named: Number(p.named) }) || L(category) || t('Building'));
+  const shop = p.shopPoi ? p : parts.find((f) => f.properties.id === group && f.properties.shopPoi)?.properties;
+  const title = String(shop?.name || label || p.companies || nameOf(p) || L(category) || t('Building'));
+  const titleIcon = shop ? iconDataUrl(String(shop.shopPoi)) : icon;
   panelPlace = { label: title, ll: [lng, lat] };
   const level = /Level ?(\d)/.exec(String(p.icls ?? ''))?.[1];
   const count = (value: unknown, max: unknown) => typeof value === 'number' && typeof max === 'number' ?
@@ -724,7 +726,7 @@ function describeBuilding(id: number, lng: number, lat: number, label?: string, 
     row('Employees', count(p.employees, p.jobs)) + (typeof p.employees === 'number' ? row('Average salary', money(p.averageSalary)) : '');
   const height = bld?.properties.h;
   const type = typeof p.labelType === 'string' ? p.labelType : category;
-  panel(head(title, L(type) ?? type, icon) + `<div class="p-rows">${businessRows(p, true)}${stats}${row('District', p.district)}${row('Zone / service', String(p.srv ?? '').replace(/([a-z])([A-Z])/g, '$1 $2'))}${row('Class', p.icls)}${row('Level', level)}${row('Lot area', p.area ? fmtAreaSmall(Number(p.area)) : null)}${row(bld?.properties.modelHeight ? 'Building height' : 'Est. height', height ? fmtHeight(Number(height)) : null)}</div>${sim.buildingHtml(id)}`);
+  panel(head(title, L(type) ?? type, titleIcon) + `<div class="p-rows">${businessRows(p, true)}${stats}${row('District', p.district)}${row('Zone / service', String(p.srv ?? '').replace(/([a-z])([A-Z])/g, '$1 $2'))}${row('Class', p.icls)}${row('Level', level)}${row('Lot area', p.area ? fmtAreaSmall(Number(p.area)) : null)}${row(bld?.properties.modelHeight ? 'Building height' : 'Est. height', height ? fmtHeight(Number(height)) : null)}</div>${sim.buildingHtml(id)}`);
   return true;
 }
 

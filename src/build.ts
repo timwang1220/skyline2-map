@@ -634,11 +634,12 @@ export function buildCity(city: CityData, progress: (msg: string) => void = () =
     const ordered = ccw ? ring : [...ring].reverse();
     const asset = cleanName(b.name);
     // parts are labelled as their asset: the player's name for it, else the main building's asset name
-    const nm = b.myname || head?.myname || b.individualName || ((addressOnly || specialPoi === 'residential') ? addressLabel : undefined) ||
+    const nm = (namedCommercial ? individualName : b.myname || head?.myname || b.individualName) || ((addressOnly || specialPoi === 'residential') ? addressLabel : undefined) ||
       (head ? cleanName(head.name) : (specialPoi || cat.poi) && b.exportLabel ? b.exportLabel : asset);
     const gid = headId ?? b.id;
     const owner = ownershipHead?.get(gid);
-    const base = { ...businessInfo, ...b.stats, id: b.id, cat: cat.cat, name: nm, asset, named: b.myname || head?.myname ? 1 : 0, srv: b.srv, icls: b.icls, area: Math.round(area), district, part: head ? 1 : 0, grp: gid, nparts: groupSize.get(gid) ?? 1,
+    const base = { ...businessInfo, ...b.stats, id: b.id, cat: cat.cat, name: nm, asset, named: b.myname || head?.myname || namedCommercial ? 1 : 0, srv: b.srv, icls: b.icls, area: Math.round(area), district, part: head ? 1 : 0, grp: gid, nparts: groupSize.get(gid) ?? 1,
+      ...(commercialPoi ? { shopPoi: facilityPoi ?? commercialPoi } : {}),
       ...(owner !== undefined && byId.get(gid)?.independentAnnex ? { parentGroup: owner } : {}),
       ...(labelType ? { labelType } : {}),
       ...(community ? { communityId: community.id } : {}) };
