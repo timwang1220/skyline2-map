@@ -238,6 +238,8 @@ export const KO: Record<string, string> = {
   "Ferry route": "페리 항로",
   "Canal": "운하",
   "Low-density residential": "저밀도 주거",
+  "Medium-density residential": "중밀도 주거",
+  "Residential community": "주거 단지",
   "High-density residential": "고밀도 주거",
   "Commercial": "상업",
   "Office": "업무",

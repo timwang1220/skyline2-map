@@ -11,7 +11,7 @@ import { registerDemProtocol, setDem } from './dem';
 import { addIcons, iconDataUrl } from './icons';
 import type { BuiltCity, SearchEntry, FC } from './build';
 import { fromLngLat, toLngLat } from './geo';
-import { createDirections } from './directions';
+import { createDirections, type Place } from './directions';
 import { createNav } from './nav-ui';
 import { createMeasure } from './measure';
 import { createReach } from './reach-ui';
@@ -244,6 +244,7 @@ function showCity(city: BuiltCity) {
   sim.reset();
   $('discoverBtn').hidden = !discoveries.count();
   state.city = city;
+  restoreHome(city);
   state.contoursLoaded = false;
   setDem(city.dem);
   const apply = () => {
@@ -372,18 +373,51 @@ async function renderRecent() {
 $('sampleBtn').onclick = () => { const u = new URL(location.href); u.searchParams.set('sample', ''); history.replaceState(null, '', u); void openSample(); };
 const onlineDialog = $<HTMLDialogElement>('onlineCity');
 const onlineName = $<HTMLInputElement>('onlineCityName');
+const onlineRemember = $<HTMLInputElement>('onlineCityRemember');
 const onlineStatus = $('onlineCityStatus');
 const onlineOpen = $<HTMLButtonElement>('onlineCityOpen');
 let onlineRequest: AbortController | undefined;
-$('onlineCityBtn').onclick = () => {
+const onlineButton = $<HTMLButtonElement>('onlineCityBtn');
+const onlineForget = $<HTMLButtonElement>('onlineCityForget');
+const onlineStorageKey = `skyline:online-city:${import.meta.env.BASE_URL}`;
+
+function rememberedOnlineCode() {
+  try { return localStorage.getItem(onlineStorageKey); } catch { return null; }
+}
+function rememberOnlineCode(code: string | null) {
+  try {
+    if (code === null) localStorage.removeItem(onlineStorageKey);
+    else localStorage.setItem(onlineStorageKey, code);
+  } catch { /* Browser storage is optional. */ }
+  onlineForget.hidden = !rememberedOnlineCode();
+}
+
+function showOnlineDialog(failed = false) {
   onlineName.value = '';
-  onlineStatus.hidden = true;
-  onlineOpen.disabled = false;
+  onlineRemember.checked = false;
+  onlineStatus.textContent = failed ? 'City not found' : '';
+  onlineStatus.hidden = !failed;
   onlineDialog.showModal();
+}
+
+onlineForget.hidden = !rememberedOnlineCode();
+onlineForget.onclick = () => {
+  onlineRequest?.abort();
+  rememberOnlineCode(null);
+  onlineButton.focus();
 };
-$('onlineCityCancel').onclick = () => onlineDialog.close();
-onlineDialog.addEventListener('close', () => onlineRequest?.abort());
-onlineDialog.querySelector('form')!.onsubmit = async (event) => {
+onlineButton.onclick = () => {
+  if (onlineRequest) return;
+  const code = rememberedOnlineCode();
+  if (code) void openOnlineCity(code, true);
+  else showOnlineDialog();
+};
+$('onlineCityCancel').onclick = () => {
+  onlineRequest?.abort();
+  onlineDialog.close();
+};
+onlineDialog.addEventListener('cancel', () => onlineRequest?.abort());
+onlineDialog.querySelector('form')!.onsubmit = (event) => {
   event.preventDefault();
   const name = onlineName.value.trim();
   if (onlineOpen.disabled) return;
@@ -392,32 +426,45 @@ onlineDialog.querySelector('form')!.onsubmit = async (event) => {
     onlineStatus.hidden = false;
     return;
   }
+  void openOnlineCity(name, false);
+};
+
+async function openOnlineCity(code: string, remembered: boolean) {
+  if (onlineRequest) return;
   const request = new AbortController();
   onlineRequest = request;
-  onlineOpen.disabled = true;
+  const save = !remembered && onlineRemember.checked;
+  onlineOpen.disabled = onlineButton.disabled = true;
   onlineStatus.hidden = true;
   let data: ArrayBuffer;
   try {
     const response = await fetch(import.meta.env.BASE_URL + 'online-city/map.cs2map.enc', { signal: request.signal, cache: 'no-cache' });
     if (!response.ok) throw new Error('Map unavailable');
     const { decryptOnlineCity } = await import('./online-city-crypto.mjs');
-    data = await decryptOnlineCity(await response.arrayBuffer(), name);
-  } catch {
+    data = await decryptOnlineCity(await response.arrayBuffer(), code);
+  } catch (error) {
     if (!request.signal.aborted) {
-      onlineStatus.textContent = 'City not found';
-      onlineStatus.hidden = false;
-      onlineOpen.disabled = false;
+      if (remembered) {
+        if (error instanceof DOMException && error.name === 'OperationError') rememberOnlineCode(null);
+        showOnlineDialog(true);
+      } else {
+        onlineStatus.textContent = 'City not found';
+        onlineStatus.hidden = false;
+      }
     }
     return;
+  } finally {
+    onlineRequest = undefined;
+    onlineOpen.disabled = onlineButton.disabled = false;
   }
   if (request.signal.aborted) return;
-  onlineRequest = undefined;
-  onlineDialog.close();
+  if (save) rememberOnlineCode(code);
+  if (onlineDialog.open) onlineDialog.close();
   pending = null;
   state.currentFile = '';
   dropSample();
   await openBuffer(data, 'Online city.cs2map');
-};
+}
 // Send to Phone: a page opened from the desktop's QR code receives the city and opens it like a recent one
 const receiveDeps = {
   open: async (map: Blob, file: string) => { await openFile(new File([map], file)); },
@@ -514,6 +561,7 @@ const LABELS: Record<string, string> = {
   residential: 'Low-density residential', residential_high: 'High-density residential', commercial: 'Commercial', office: 'Office', industrial: 'Industrial', education: 'Education', health: 'Healthcare', civic: 'Public service', landmark: 'Landmark', transport: 'Transport facility', park_building: 'Park structure', plaza: 'Plaza', cemetery: 'Cemetery', sports: 'Sports & recreation', utility: 'Utility', utility_open: 'Utility', apron: 'Aircraft apron', other: 'Building',
   toll: 'Toll booth', hospital: 'Hospital / clinic', school: 'School', police: 'Police', fire: 'Fire station', prison: 'Prison', park: 'Park', nature: 'Nature reserve', amusement: 'Amusement park', zoo: 'Zoo', airport: 'Airport', industry: 'Industry area', campus: 'Campus',
   metro: 'Metro', train: 'Train', bus: 'Bus', ferry_mode: 'Ferry',
+  residential_medium: 'Medium-density residential', residential_unspecified: 'Residential', community: 'Residential community', address: 'Address',
 };
 const MODES: Record<string, string> = { bus: 'Bus', tram: 'Tram', metro: 'Metro', train: 'Train', monorail: 'Monorail', ferry: 'Ferry', cablecar: 'Cable car', tour: 'Walking tour', air: 'Air', other: 'Other' };
 const BOOTH_KINDS = ['One-way toll booth (small)', 'One-way toll booth (medium)', 'One-way toll booth (large)', 'Two-way toll booth (small)', 'Two-way toll booth (medium)', 'Two-way toll booth (large)', 'Toll lanes (no booth in the export)'];
@@ -570,7 +618,7 @@ function stopList(line: BuiltCity['meta']['lines'][number]) {
   const names = line.stopNames ?? [];
   if (!names.some(Boolean)) return '';
   let unnamed = 0;
-  const items = names.map((n) => n ? `<li><button class="stop-btn" data-stop="${esc(n)}"><i style="border-color:${line.color}"></i>${esc(n)}</button></li>` : `<li class="muted"><i style="border-color:${line.color}"></i>${t('Stop {n}', { n: ++unnamed })}</li>`).join('');
+  const items = names.map((n, i) => n ? `<li><button class="stop-btn" data-stop="${esc(n)}"><i style="border-color:${line.color}"></i>${esc((line.stopLabels?.[i] ?? n) || t('Unnamed stop'))}</button></li>` : `<li class="muted"><i style="border-color:${line.color}"></i>${t('Stop {n}', { n: ++unnamed })}</li>`).join('');
   return `<div class="stops"><div class="stops-head">${line.shape === 'both' ? t('Stops · runs both ways') : t('Stops · circular route')}</div><ol style="--c:${line.color}">${items}</ol></div>`;
 }
 function fareRow(line: BuiltCity['meta']['lines'][number]) {
@@ -608,7 +656,7 @@ function describe(f: MapGeoJSONFeature, lng: number, lat: number) {
   if (layer === 'transit-line') return selectLine(p.line, false);
   if (layer === 'station' || layer === 'busstop') {
     const names = String(p.lines ?? p.name).split(' · ');
-    panel(head(layer === 'busstop' ? p.stopName || t('Bus stop') : p.name || t('{mode} station', { mode: modeName(p.poi) }), `${modeName(p.poi)} · ${tn(names.length, '{n} line', '{n} lines')}`, iconDataUrl(p.poi, p.color)) +
+    panel(head(layer === 'busstop' ? p.stopName || t('Bus stop') : p.label || t('{mode} station', { mode: modeName(p.poi) }), `${modeName(p.poi)} · ${tn(names.length, '{n} line', '{n} lines')}`, iconDataUrl(p.poi, p.color)) +
       `<div class="p-rows">${names.map((n) => { const l = state.city!.meta.lines.find((x) => x.name === n); return `<div class="p-row"><span><i class="swatch" style="background:${l?.color ?? '#999'}"></i>${esc(n)}</span><span>${esc(l ? modeName(l.type) : '')}</span></div>`; }).join('')}</div>` +
       `<div class="p-actions">${names.map((n) => { const l = state.city!.meta.lines.find((x) => x.name === n); return l ? `<button class="pill" data-line="${l.id}">${esc(t('Show {name}', { name: n }))}</button>` : ''; }).join('')}${closeBtn({ kind: 'station', name: layer === 'station' ? p.name || undefined : undefined, at: fromLngLat(geom.coordinates[0], geom.coordinates[1]), scope: layer === 'busstop' ? 'road' : 'stretch' })}</div>`, p.color);
     setSelection([{ type: 'Feature', geometry: geom, properties: {} }]);
@@ -652,7 +700,7 @@ function describeBuilding(id: number, lng: number, lat: number, label?: string, 
   const p = lot.properties;
   const bld = c.sources.buildings.features.find((f) => f.properties.id === id);
   const group = p.grp ?? id;
-  const parts = Number(p.nparts) > 1 ? c.sources.lots.features.filter((f) => (f.properties.grp ?? f.properties.id) === group) : [lot];
+  const parts = c.sources.lots.features.filter((f) => (f.properties.grp ?? f.properties.id) === group || f.properties.parentGroup === group);
   setSelection(parts.map((f) => ({ type: 'Feature', geometry: f.geometry, properties: {} })));
   const category = String(p.cat);
   const title = label || String(p.companies || nameOf({ name: String(p.name ?? ''), named: Number(p.named) }) || L(category) || t('Building'));
@@ -665,7 +713,8 @@ function describeBuilding(id: number, lng: number, lat: number, label?: string, 
     (typeof p.households === 'number' ? row('Average rent', money(p.averageRent)) : '') +
     row('Employees', count(p.employees, p.jobs)) + (typeof p.employees === 'number' ? row('Average salary', money(p.averageSalary)) : '');
   const height = bld?.properties.h;
-  panel(head(title, L(category) ?? category, icon) + `<div class="p-rows">${businessRows(p, true)}${stats}${row('District', p.district)}${row('Zone / service', String(p.srv ?? '').replace(/([a-z])([A-Z])/g, '$1 $2'))}${row('Class', p.icls)}${row('Level', level)}${row('Lot area', p.area ? fmtAreaSmall(Number(p.area)) : null)}${row(bld?.properties.modelHeight ? 'Building height' : 'Est. height', height ? fmtHeight(Number(height)) : null)}</div>${sim.buildingHtml(id)}`);
+  const type = typeof p.labelType === 'string' ? p.labelType : category;
+  panel(head(title, L(type) ?? type, icon) + `<div class="p-rows">${businessRows(p, true)}${stats}${row('District', p.district)}${row('Zone / service', String(p.srv ?? '').replace(/([a-z])([A-Z])/g, '$1 $2'))}${row('Class', p.icls)}${row('Level', level)}${row('Lot area', p.area ? fmtAreaSmall(Number(p.area)) : null)}${row(bld?.properties.modelHeight ? 'Building height' : 'Est. height', height ? fmtHeight(Number(height)) : null)}</div>${sim.buildingHtml(id)}`);
   return true;
 }
 
@@ -756,6 +805,10 @@ $('panelBody').addEventListener('keydown', (e) => { if (e.key === 'Enter' && (e.
 map.on('click', (e) => {
   if (!state.city || nav.isActive()) return;
   hideCtx();
+  if (pickingHome) {
+    setHome({ label: placeLabelAt(e.point), ll: [e.lngLat.lng, e.lngLat.lat] });
+    return;
+  }
   if (measure.isActive()) { measure.click(e); return; }
   if (reach.isActive()) { reach.click([e.lngLat.lng, e.lngLat.lat]); return; }
   if (discoveries.isActive()) return;
@@ -809,7 +862,7 @@ $('schemChip').onclick = () => schem.open();
 // ------------------------------------------------------------------ directions
 const dir = createDirections({
   approx: approxRoutes, savedLanes: () => sim.savedLanes(),
-  map, worker, city: () => state.city,
+  map, worker, city: () => state.city, defaultFrom: () => home,
   pricing, editPricing: (tab, focus) => pricingEd.open(tab, focus),
   showOnSchematic: (route) => schem.open({ route }),
   simRules: () => sim.hasRules(),
@@ -943,33 +996,117 @@ const KIND_ORDER: Record<string, number> = { district: 0, station: 1, park: 2, l
 let results: SearchEntry[] = [];
 let active = -1;
 const searchInput = $('search') as HTMLInputElement;
+const homeSettings = $('homeSettings');
+const homeMarkerElement = document.createElement('div');
+homeMarkerElement.className = 'home-marker';
+homeMarkerElement.setAttribute('aria-hidden', 'true');
+const homeMarker = new maplibregl.Marker({ element: homeMarkerElement });
+const defaultHomeName = '岭梅苑1号楼';
+let home: Place | null = null;
+let pickingHome = false;
+const homeKey = (city: BuiltCity) => `skyline:home:${JSON.stringify([city.meta.source?.format, city.meta.name])}`;
+
+function renderHome() {
+  homeSettings.classList.toggle('picking', pickingHome);
+  $('homeAddress').textContent = home?.label ?? 'No home selected';
+  $('homeChange').textContent = home ? 'Change location' : 'Set home';
+  $('homeChange').hidden = pickingHome;
+  $('homeHint').hidden = $('homeCancel').hidden = !pickingHome;
+  homeMarker.remove();
+  if (home) homeMarker.setLngLat(home.ll).addTo(map);
+}
+
+function closeHomeSettings() {
+  pickingHome = false;
+  homeSettings.classList.remove('picking');
+  homeSettings.hidden = true;
+  $('homeBtn').setAttribute('aria-expanded', 'false');
+}
+
+function restoreHome(city: BuiltCity) {
+  closeHomeSettings();
+  home = null;
+  try {
+    const saved = JSON.parse(localStorage.getItem(homeKey(city)) ?? 'null');
+    if (typeof saved?.label === 'string' && saved.label && Array.isArray(saved.ll) && saved.ll.length === 2 &&
+        saved.ll.every(Number.isFinite) && Math.abs(saved.ll[0]) <= 180 && Math.abs(saved.ll[1]) <= 90) home = saved;
+  } catch { /* The default remains available when browser storage is unavailable. */ }
+  const entry = !home && city.search.find(s => s.buildingId !== undefined && s.name === defaultHomeName);
+  if (entry) home = { label: entry.name, ll: entry.center };
+  renderHome();
+}
+
+function setHome(place: Place) {
+  if (!state.city) return;
+  home = place;
+  try { localStorage.setItem(homeKey(state.city), JSON.stringify(home)); } catch { /* Still usable for this visit. */ }
+  closeHomeSettings();
+  renderHome();
+  runSearch();
+  $('searchbox').classList.remove('open');
+}
+
+$('homeBtn').onclick = () => {
+  if (!homeSettings.hidden) { closeHomeSettings(); runSearch(); return; }
+  homeSettings.hidden = false;
+  $('homeBtn').setAttribute('aria-expanded', 'true');
+  renderHome();
+};
+$('homeChange').onclick = () => { pickingHome = true; renderHome(); searchInput.focus(); runSearch(); };
+$('homeCancel').onclick = () => { closeHomeSettings(); runSearch(); $('homeBtn').focus(); };
+
+const addressQuery = (value: string) => value.normalize('NFKC').toLowerCase().replace(/\s+/g, '');
 function runSearch() {
   const q = searchInput.value.trim().toLowerCase();
   $('searchClear').hidden = !q;
   const box = $('results');
   if (!q || !state.city) { $('searchbox').classList.remove('open'); return; }
-  const scored: [number, SearchEntry][] = [];
-  const seen = new Set<string>();
+  const compact = addressQuery(q);
+  const origin = home && fromLngLat(...home.ll);
+  const distances = new Map<SearchEntry, number>();
+  const scored: { score: number; entry: SearchEntry; addressMatch: boolean; exact: boolean }[] = [];
   for (const s of state.city.search) {
     const n = s.name.toLowerCase();
     const i = n.indexOf(q);
-    if (i < 0) continue;
-    const key = s.buildingId === undefined ? s.kind + s.name : `building:${s.buildingId}`;
-    if (seen.has(key)) continue;
-    seen.add(key);
-    scored.push([(i === 0 ? 0 : 10) + (KIND_ORDER[s.kind] ?? 5) * 2 + n.length / 100, s]);
+    const addressMatch = !!s.address && addressQuery(s.address).includes(compact);
+    if (i < 0 && !addressMatch) continue;
+    const exact = n === q;
+    const matchScore = exact ? -8 : i === 0 ? 0 : addressMatch ? (i < 0 && s.alias ? 25 : 5) : 10;
+    scored.push({ score: matchScore + (KIND_ORDER[s.kind] ?? 5) * 2 + n.length / 100, entry: s, addressMatch, exact });
+    if (origin) {
+      const [x, z] = fromLngLat(...s.center);
+      distances.set(s, Math.hypot(x - origin[0], z - origin[1]));
+    }
   }
-  scored.sort((a, b) => a[0] - b[0]);
-  results = scored.slice(0, 12).map((x) => x[1]);
+  scored.sort((a, b) => a.score - b.score);
+  const seen = new Set<string>();
+  results = [];
+  const unique = scored.filter(({ entry: s }) => {
+    const key = s.buildingId === undefined ? `${s.kind}:${s.name}:${s.center.join(',')}` : `building:${s.buildingId}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+  if (origin) unique.sort((a, b) => distances.get(a.entry)! - distances.get(b.entry)!);
+  for (const { entry: s, addressMatch, exact } of unique) {
+    if (results.length >= 12 && !exact && !(addressMatch && compact.length >= 3)) continue;
+    results.push(s);
+  }
   active = results.length ? 0 : -1;
-  const hl = (name: string) => { const i = name.toLowerCase().indexOf(q); return esc(name.slice(0, i)) + '<mark>' + esc(name.slice(i, i + q.length)) + '</mark>' + esc(name.slice(i + q.length)); };
+  const hl = (name: string) => { const i = name.toLowerCase().indexOf(q); return i < 0 ? esc(name) : esc(name.slice(0, i)) + '<mark>' + esc(name.slice(i, i + q.length)) + '</mark>' + esc(name.slice(i + q.length)); };
+  box.scrollTop = 0;
   const pin = '<svg viewBox="0 0 24 24"><path d="M12 2a7 7 0 0 0-7 7c0 5.3 7 13 7 13s7-7.7 7-13a7 7 0 0 0-7-7zm0 9.5a2.5 2.5 0 1 1 0-5 2.5 2.5 0 0 1 0 5z"/></svg>';
   const road = '<svg viewBox="0 0 24 24"><path d="M11 4h2v3h-2zm0 6h2v4h-2zm0 7h2v3h-2zM4 20 8 4h2L6.5 20zm16 0h-2.5L14 4h2z"/></svg>';
   box.innerHTML = results.length ? results.map((s, i) => {
     const line = s.kind === 'line' ? state.city!.meta.lines.find((l) => l.name === s.name) : null;
     const icon = s.kind === 'station' ? `<img src="${iconDataUrl(s.sub)}" alt="">` : s.kind === 'poi' ? `<img src="${iconDataUrl(s.sub)}" alt="">` : s.kind === 'park' ? `<img src="${iconDataUrl(/Nature/.test(s.sub) ? 'nature' : /Airport/.test(s.sub) ? 'airport' : 'park')}" alt="">` : line ? `<img src="${iconDataUrl(line.type, line.color)}" alt="">` : `<span class="ricon">${s.kind === 'road' ? road : pin}</span>`;
-    const sub = s.kind === 'station' ? t('{mode} station', { mode: modeName(s.sub) }) : s.kind === 'district' ? t('District') : s.kind === 'road' ? s.sub : s.kind === 'line' ? t('{mode} line', { mode: modeName(s.sub) }) : s.kind === 'park' ? (s.sub === 'Generic' ? t('Park') : L(s.sub.toLowerCase()) ?? s.sub.replace(/([a-z])([A-Z])/g, '$1 $2')) : L(s.sub) ?? s.sub;
-    return `<div class="result${i === active ? ' active' : ''}" data-i="${i}" role="option">${icon}<div style="min-width:0"><div class="rname">${hl(s.name)}</div><div class="rsub">${esc(sub)}</div></div></div>`;
+    const type = s.labelType ?? s.sub;
+    const poiType = ['residential', 'residential_medium', 'residential_high', 'residential_unspecified'].includes(type) ? t('Residential') : L(type) ?? s.sub;
+    const sub = s.kind === 'station' ? t('{mode} station', { mode: modeName(s.sub) }) : s.kind === 'district' ? t('District') : s.kind === 'road' ? s.sub : s.kind === 'line' ? t('{mode} line', { mode: modeName(s.sub) }) : s.kind === 'park' ? (s.sub === 'Generic' ? t('Park') : L(s.sub.toLowerCase()) ?? s.sub.replace(/([a-z])([A-Z])/g, '$1 $2')) : poiType;
+    const resultType = sub.replace(/\p{L}/u, letter => letter.toLocaleUpperCase(locale()));
+    const distance = distances.get(s);
+    const trip = distance !== undefined && !pickingHome ? `<div class="rtrip"><button type="button" data-home-route="${i}" ${canRoute() ? '' : 'disabled'} title="Transit from home" aria-label="Transit from home to ${esc(s.name)}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21.4 2.6a1 1 0 0 1 1.3 1.3l-8.2 17.8a1 1 0 0 1-1.9-.2l-1.8-8.3-8.3-1.8a1 1 0 0 1-.2-1.9z"/></svg></button><span>${distance < 1000 ? `${Math.min(999, Math.round(distance))} m` : `${fmtFixed(distance / 1000, 1)} km`}</span></div>` : '';
+    return `<div class="result${i === active ? ' active' : ''}" data-i="${i}" role="option">${icon}<div class="rtext"><div class="rname">${hl(s.name)}</div><div class="rmeta"><span class="rsub">${esc(resultType)}</span>${s.address ? `  <span class="raddress" title="${esc(s.address)}">${hl(s.address)}</span>` : ''}</div></div>${trip}</div>`;
   }).join('') : `<div class="result-empty">${esc(t('No results for “{q}”', { q: searchInput.value }))}</div>`;
   $('searchbox').classList.add('open');
 }
@@ -987,10 +1124,15 @@ function showSearchedRoad(name: string) {
 function choose(s: SearchEntry) {
   $('searchbox').classList.remove('open');
   searchInput.value = s.name; searchInput.blur();
+  if (pickingHome) {
+    setHome({ label: s.name, ll: s.center });
+    map.flyTo({ center: s.center, zoom: s.zoom, speed: 1.6 });
+    return;
+  }
   if (s.kind === 'line') { const l = state.city!.meta.lines.find((x) => x.name === s.name); if (l) return selectLine(l.id, true); }
   if (s.bbox) map.fitBounds([[s.bbox[0], s.bbox[1]], [s.bbox[2], s.bbox[3]]], { padding: { top: 100, bottom: 60, left: innerWidth > 700 ? 420 : 40, right: 60 }, maxZoom: 16.5 });
   else map.flyTo({ center: s.center, zoom: s.zoom, speed: 1.6 });
-  if (s.buildingId !== undefined && describeBuilding(s.buildingId, s.center[0], s.center[1], s.name)) {
+  if (s.buildingId !== undefined && describeBuilding(s.buildingId, s.center[0], s.center[1], s.name, s.sub === 'address' ? undefined : iconDataUrl(s.sub))) {
     panelRefresh = null;
     return;
   }
@@ -1008,16 +1150,41 @@ function choose(s: SearchEntry) {
 searchInput.addEventListener('input', runSearch);
 searchInput.addEventListener('focus', runSearch);
 searchInput.addEventListener('keydown', (e) => {
-  if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); if (!results.length) return; active = (active + (e.key === 'ArrowDown' ? 1 : -1) + results.length) % results.length; $('results').querySelectorAll('.result').forEach((el, i) => el.classList.toggle('active', i === active)); }
+  if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+    e.preventDefault();
+    if (!results.length) return;
+    active = (active + (e.key === 'ArrowDown' ? 1 : -1) + results.length) % results.length;
+    const rows = $('results').querySelectorAll('.result');
+    rows.forEach((el, i) => el.classList.toggle('active', i === active));
+    rows[active]?.scrollIntoView({ block: 'nearest' });
+  }
   else if (e.key === 'Enter' && active >= 0) choose(results[active]);
   else if (e.key === 'Escape') { $('searchbox').classList.remove('open'); searchInput.blur(); }
 });
-$('results').addEventListener('mousedown', (e) => { const el = (e.target as HTMLElement).closest('[data-i]') as HTMLElement | null; if (el) { e.preventDefault(); choose(results[+el.dataset.i!]); } });
-searchInput.addEventListener('blur', () => setTimeout(() => $('searchbox').classList.remove('open'), 120));
+$('results').addEventListener('mousedown', (e) => {
+  const target = e.target as Element;
+  const el = target.closest<HTMLElement>('[data-i]');
+  if (!el) return;
+  e.preventDefault();
+  if (!target.closest('[data-home-route]')) choose(results[+el.dataset.i!]);
+});
+$('results').addEventListener('click', (e) => {
+  const button = (e.target as Element).closest<HTMLButtonElement>('[data-home-route]');
+  if (!button || !home || !canRoute()) return;
+  const destination = results[+button.dataset.homeRoute!];
+  if (!destination) return;
+  $('searchbox').classList.remove('open');
+  closeHomeSettings();
+  dir.open({ from: home, to: { label: destination.name, ll: destination.center }, mode: 'transit', newTrip: true, walkFallback: true });
+});
+$('searchbox').addEventListener('focusout', (e) => {
+  if (!(e.relatedTarget instanceof Node && $('searchbox').contains(e.relatedTarget))) $('searchbox').classList.remove('open');
+});
 $('searchClear').onclick = () => { searchInput.value = ''; runSearch(); searchInput.focus(); closePanel(); };
 window.addEventListener('keydown', (e) => {
   if (e.key === '/' && document.activeElement !== searchInput && state.city) { e.preventDefault(); searchInput.focus(); }
   if (e.key === 'Escape') {
+    if (!homeSettings.hidden) { closeHomeSettings(); runSearch(); $('homeBtn').focus(); return; }
     // the start screen reopened over a map: Esc goes back to it (not while a map is loading)
     if (!$('welcome').hidden && state.city && $('loading').hidden) { $('welcome').hidden = true; return; }
     closePanel(); closeDrawer(); hideCtx(); $('layerPop').hidden = true;

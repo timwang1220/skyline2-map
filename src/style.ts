@@ -377,7 +377,7 @@ export function buildStyle(o: StyleOptions, fontBase: string): StyleSpecificatio
       id: 'station', type: 'symbol', source: 'places', filter: ['==', ['get', 'kind'], 'station'], minzoom: 11.5,
       layout: {
         visibility: vis(o.labels && o.transit), 'icon-image': ['concat', 'st-', ['get', 'poi'], '-', ['get', 'color']], 'icon-size': ['interpolate', ['linear'], ['zoom'], 11.5, 0.7, 14, 0.9, 17, 1.05],
-        'text-field': ['step', ['zoom'], ['case', ['<=', ['get', 'rank'], 1], ['get', 'name'], ''], 13, ['case', ['<=', ['get', 'rank'], 2], ['get', 'name'], ''], 14.5, ['get', 'name']],
+        'text-field': ['step', ['zoom'], ['case', ['<=', ['get', 'rank'], 1], ['get', 'label'], ''], 13, ['case', ['<=', ['get', 'rank'], 2], ['get', 'label'], ''], 14.5, ['get', 'label']],
         'text-font': font('SemiBold'), 'text-size': ['interpolate', ['linear'], ['zoom'], 12, 11.5, 15, 13, 18, 15],
         'text-variable-anchor-offset': ['literal', ['top', [0, 1.05], 'bottom', [0, -1.05], 'right', [-1.15, 0], 'left', [1.15, 0], 'top-left', [0.8, 0.8], 'top-right', [-0.8, 0.8]]],
         'text-justify': 'auto', 'text-max-width': 10, 'text-optional': true, 'text-padding': 1,

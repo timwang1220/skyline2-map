@@ -12,7 +12,7 @@ import type { ContextStore, TollCost, FareCost } from './context-ui';
 
 type LL = [number, number];
 /** an end of the trip; `seg`: the road segment drawn on top where the user clicked to set it, if they clicked a road */
-interface Place { label: string; ll: LL; seg?: number }
+export interface Place { label: string; ll: LL; seg?: number }
 
 export const MODES: { id: Mode; label: string; icon: string }[] = [
   { id: 'drive', label: 'Driving', icon: '<path d="M18.9 6a1.5 1.5 0 0 0-1.4-1h-11a1.5 1.5 0 0 0-1.4 1L3 12v8a1 1 0 0 0 1 1h1a1 1 0 0 0 1-1v-1h12v1a1 1 0 0 0 1 1h1a1 1 0 0 0 1-1v-8l-2.1-6zM6.5 16a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3zm11 0a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3zM5 11l1.5-4.5h11L19 11H5z"/>' },
@@ -47,6 +47,7 @@ export function maneuverIcon(m: string): string {
 
 export interface DirectionsDeps {
   map: MLMap; worker: Worker; city: () => BuiltCity | null;
+  defaultFrom: () => Place | null;
   onOpen: () => void; onClose: () => void;
   /** user-supplied prices (tolls, fares, currency) */
   pricing: ContextStore;
@@ -135,15 +136,23 @@ export function createDirections(d: DirectionsDeps) {
   const mk = (cls: string) => { const e = document.createElement('div'); e.className = cls; return e; };
   const startM = new maplibregl.Marker({ element: mk('dir-pin-a'), draggable: true });
   const endM = new maplibregl.Marker({ element: mk('dir-pin-b'), draggable: true, anchor: 'bottom' });
+  startM.on('dragstart', () => startM.getElement().classList.remove('at-home'));
   startM.on('dragend', () => { const p = startM.getLngLat(); setPoint(0, { label: t('Dropped pin'), ll: [p.lng, p.lat] }); });
   endM.on('dragend', () => { const p = endM.getLngLat(); setPoint(st.pts.length - 1, { label: t('Dropped pin'), ll: [p.lng, p.lat] }); });
   /** numbered markers for the stops in between, made again whenever the trip changes */
   let stopMs: maplibregl.Marker[] = [];
 
-  function open(opts: { to?: Place; from?: Place; mode?: Mode } = {}) {
+  let defaultStart: Place | null = null;
+  let walkFallback = false;
+  function open(opts: { to?: Place; from?: Place; mode?: Mode; newTrip?: boolean; walkFallback?: boolean } = {}) {
+    const home = d.defaultFrom();
+    walkFallback = opts.walkFallback === true;
+    if (opts.newTrip) st.pts = [null, null];
     if (opts.mode) st.mode = opts.mode;
     if (opts.to) st.pts[st.pts.length - 1] = opts.to;
     if (opts.from) st.pts[0] = opts.from;
+    else if (!st.pts[0] || st.pts[0] === defaultStart) st.pts[0] = home;
+    defaultStart = home;
     el.hidden = false; d.onOpen(); sheet.show('half');
     const empty = st.pts.findIndex((p) => !p);
     st.active = empty >= 0 ? empty : st.pts.length - 1;
@@ -169,6 +178,9 @@ export function createDirections(d: DirectionsDeps) {
   }
   function syncMarkers() {
     const a = first(), b = last();
+    const home = d.defaultFrom();
+    const atHome = !!a && !!home && maplibregl.LngLat.convert(a.ll).distanceTo(maplibregl.LngLat.convert(home.ll)) < 1;
+    startM.getElement().classList.toggle('at-home', atHome);
     if (a) startM.setLngLat(a.ll).addTo(map); else startM.remove();
     if (b) endM.setLngLat(b.ll).addTo(map); else endM.remove();
     for (const m of stopMs) m.remove();
@@ -269,7 +281,15 @@ export function createDirections(d: DirectionsDeps) {
   function onResult(msg: { id: number; mode: Mode; routes: Route[] }) {
     if (msg.id !== st.req || !isOpen()) return; // closed meanwhile: nothing to draw
     st.results[msg.mode] = msg.routes;
-    if (msg.mode === st.mode) { drawRoutes(true); }
+    const previousMode = st.mode;
+    if (walkFallback && st.mode === 'transit' && st.results.transit) {
+      if (st.results.transit.length) walkFallback = false;
+      else if (st.results.walk) {
+        walkFallback = false;
+        if (st.results.walk.length) st.mode = 'walk';
+      }
+    }
+    if (msg.mode === st.mode || previousMode !== st.mode) { drawRoutes(true); }
     render();
   }
 
@@ -423,7 +443,7 @@ export function createDirections(d: DirectionsDeps) {
     const t = e.target as HTMLElement;
     if (t.closest('.dir-close')) return close();
     const mode = (t.closest('.dir-mode') as HTMLElement | null)?.dataset.mode as Mode | undefined;
-    if (mode) { st.mode = mode; st.sel = 0; st.expanded = false; drawRoutes(true); render(); return; }
+    if (mode) { walkFallback = false; st.mode = mode; st.sel = 0; st.expanded = false; drawRoutes(true); render(); return; }
     if (t.closest('.dir-swap')) { reorder(st.pts.map((_, i) => st.pts.length - 1 - i)); return; } // the whole trip, reversed
     const rm = (t.closest('[data-rm]') as HTMLElement | null)?.dataset.rm;
     if (rm !== undefined && st.pts.length > 2) { const was = typed(); st.pts.splice(+rm, 1); was.splice(+rm, 1); st.active = Math.min(st.active, st.pts.length - 1); renderFields(was); syncMarkers(); compute(); return; }

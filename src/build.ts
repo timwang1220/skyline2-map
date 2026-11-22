@@ -12,7 +12,7 @@ interface Feature { type: 'Feature'; id?: number; properties: Props; geometry: {
 export interface FC { type: 'FeatureCollection'; features: Feature[] }
 const fc = (features: Feature[]): FC => ({ type: 'FeatureCollection', features });
 
-export interface SearchEntry { name: string; kind: string; sub: string; center: XY; zoom: number; bbox?: [number, number, number, number]; buildingId?: number }
+export interface SearchEntry { name: string; kind: string; sub: string; center: XY; zoom: number; bbox?: [number, number, number, number]; buildingId?: number; address?: string; labelType?: string; alias?: boolean }
 
 export interface BuiltCity {
   meta: {
@@ -21,7 +21,7 @@ export interface BuiltCity {
     source?: { format: 'vellummap' | 'cmm'; producer: string; lanes: boolean; exactDistricts: boolean; /** routing runs on estimated lanes: every route is approximate */ approxRoutes?: boolean };
     stats: Record<string, number>;
     elevation: { min: number; max: number };
-    lines: { id: number; name: string; type: string; color: string; stops: number; bbox: [number, number, number, number] | null; stopNames?: string[]; fare?: number; shape?: 'both' | 'loop'; /** part of the path is rebuilt from the network, not exported (.cmm) */ estimated?: true }[];
+    lines: { id: number; name: string; type: string; color: string; stops: number; bbox: [number, number, number, number] | null; stopNames?: string[]; stopLabels?: string[]; fare?: number; shape?: 'both' | 'loop'; /** part of the path is rebuilt from the network, not exported (.cmm) */ estimated?: true }[];
   };
   sources: Record<string, FC>;
   population?: CityData['population'];
@@ -64,6 +64,7 @@ export interface RoadClass { cls: string; group: 'road' | 'path' | 'rail' | 'aer
 
 /** Transit mode of a game line type. */
 export const modeOf = (t: string) => (/Metro|Subway/i.test(t) ? 'metro' : /Train/i.test(t) ? 'train' : /Tram/i.test(t) ? 'tram' : /Monorail/i.test(t) ? 'monorail' : /Ship|Ferry/i.test(t) ? 'ferry' : /Cable/i.test(t) ? 'cablecar' : /Bus|Trolley|Evacuation|Taxi/i.test(t) ? 'bus' : /Pedestrian|Tour|Walking/i.test(t) ? 'tour' : /Plane|Blimp|Helicopter/i.test(t) ? 'air' : 'other');
+const metroStopLabel = (name: string) => name.replaceAll('地铁站', '').trim();
 
 export function laneInfo(st: CSegType | undefined) {
   if (!st) return { vehicle: 0, span: 0, tram: false, bike: false, oneway: false, center: 0, speed: 0 };
@@ -129,6 +130,14 @@ export function classify(seg: CSeg, st: CSegType | undefined, lanes: ReturnType<
 
 interface BCat { cat: string; poi: string | null; height: number; inset: number }
 
+function residentialLabel(b: CBuilding) {
+  if (b.srv !== 'Residential' || b.exportLabel === undefined) return undefined;
+  if (/\bHigh/i.test(b.subsrv) || /Residential[_ -]*High|LowRent/i.test(b.name)) return 'residential_high';
+  if (/\bMedium/i.test(b.subsrv) || /Residential[_ -]*(Medium|Row|Mixed)/i.test(b.name)) return 'residential_medium';
+  if (/\bLow/i.test(b.subsrv) || /Residential[_ -]*Low|SwedishVilla/i.test(b.name)) return 'residential';
+  return 'residential_unspecified';
+}
+
 const commercialBrandMarkers = new Map([
   ['星巴克', 'starbucks'],
   ['starbucks', 'starbucks'],
@@ -136,7 +145,27 @@ const commercialBrandMarkers = new Map([
   ['奥乐齐', 'aldi'],
   ['奥乐齐超市', 'aldi'],
   ['aldi', 'aldi'],
+  ['罗森', 'lawson'],
+  ['羅森', 'lawson'],
+  ['lawson', 'lawson'],
+  ['全家', 'familymart'],
+  ['全家便利店', 'familymart'],
+  ['全家便利商店', 'familymart'],
+  ['familymart', 'familymart'],
+  ['family mart', 'familymart'],
+  ['麦当劳', 'mcdonalds'],
+  ['麥當勞', 'mcdonalds'],
+  ["mcdonald's", 'mcdonalds'],
+  ['mcdonalds', 'mcdonalds'],
 ]);
+
+const poolName = /Pool|Swimming|Aquatic|泳/i;
+const sportMarkers = [
+  [/篮球|basketball/i, 'basketball'],
+  [/足球|soccer|football/i, 'football'],
+  [/网球|網球|tennis/i, 'tennis'],
+  [poolName, 'swimming-pool'],
+] as const;
 
 const facilityMarkers = [
   [/政府/, 'government'],
@@ -199,7 +228,7 @@ function buildingCategory(b: CBuilding, area: number): BCat | null {
       return { cat: 'transport', poi: null, height: 12, inset: 0.82 };
     case 'Beautification':
       if (b.exportLabel !== undefined) {
-        const pool = /Pool|Swimming|Aquatic|泳/i.test(nm + b.exportLabel);
+        const pool = poolName.test(nm + b.exportLabel);
         if (pool || /Basketball|Tennis|Football|Soccer|Court|Skate|Gym|Fitness|Sport|球场|滑板|健身/i.test(nm + b.exportLabel))
           return { cat: 'sports', poi: 'sports', height: pool ? 8 : 0, inset: 0.7 };
         return { cat: 'park_building', poi: 'park', height: 0, inset: 1 };
@@ -216,7 +245,7 @@ function buildingCategory(b: CBuilding, area: number): BCat | null {
     case 'Tourism': case 'Museums': case 'Hotel':
       return { cat: 'commercial', poi: 'landmark', height: 24, inset: 0.82 };
     default:
-      return area > 30 ? { cat: 'other', poi: null, height: 10, inset: 0.8 } : null;
+      return area > 30 || (b.independentAnnex && area > 0) ? { cat: 'other', poi: null, height: 10, inset: 0.8 } : null;
   }
 }
 
@@ -251,9 +280,9 @@ function cleanName(nm: string): string {
  * `prntb` is *not* the main building: walk it back to the head. Returns
  * part id → head id (heads and single buildings are not in the map).
  */
-export function buildingGroups(buildings: CBuilding[]): Map<number, number> {
+export function buildingGroups(buildings: CBuilding[], includeDetached = false): Map<number, number> {
   const parent = new Map<number, number>();
-  for (const b of buildings) if (b.parent) parent.set(b.id, b.parent);
+  for (const b of buildings) if (b.parent && (includeDetached || !b.independentAnnex)) parent.set(b.id, b.parent);
   const ids = new Set(buildings.map((b) => b.id));
   const head = new Map<number, number>();
   for (const id of parent.keys()) {
@@ -511,14 +540,15 @@ export function buildCity(city: CityData, progress: (msg: string) => void = () =
   const lots: Feature[] = [];
   const blds: Feature[] = [];
   const places: Feature[] = [];
-  const communities = new Map<string, { name: string; buildings: { id: number; number: number; x: number; z: number }[] }>();
+  const communities = new Map<string, { name: string; buildings: { id: number; number: number; x: number; z: number; address: string; labelType?: string }[] }>();
   const poiSeen: { name: string; x: number; z: number; poi: string; area: number }[] = [];
   const namedStations: { name: string; x: number; z: number; mode: string; modes: Set<string>; rings: XY[][]; used?: boolean }[] = [];
   const byId = new Map(city.buildings.map((b) => [b.id, b]));
   const groupHead = buildingGroups(city.buildings);
+  const ownershipHead = city.buildings.some(b => b.independentAnnex) ? buildingGroups(city.buildings, true) : undefined;
   for (const [id, head] of groupHead) {
     const part = byId.get(id);
-    if (part?.independentAnnex || (part?.exportLabel !== undefined && /Placeholder/i.test(byId.get(head)?.name ?? ''))) groupHead.delete(id);
+    if (part?.exportLabel !== undefined && /Placeholder/i.test(byId.get(head)?.name ?? '')) groupHead.delete(id);
   }
   const groupSize = new Map<number, number>();
   for (const h of groupHead.values()) groupSize.set(h, (groupSize.get(h) ?? 1) + 1);
@@ -546,10 +576,12 @@ export function buildCity(city: CityData, progress: (msg: string) => void = () =
     const community = !head && cat ? b.community : undefined;
     const business = b.companyKind ?? (b.srv === 'Commercial' ? 'shop' : b.srv === 'Industrial' ? 'industry' : b.srv === 'Office' ? 'office' : null);
     const individualName = b.myname || b.individualName || '';
-    const namedCommercial = business === 'shop' && !!individualName;
+    const brandPoi = commercialBrandMarkers.get(individualName.trim().toLowerCase().replace(/[‘’]/g, "'"));
+    // Some custom shop assets lack the commercial service flag in CS2MapView.
+    const namedCommercial = !!individualName && (business === 'shop' || (!b.srv && !!brandPoi));
     const labels = [b.myname, b.individualName, b.exportLabel, b.name];
     const facilityPoi = facilityMarkers.find(([pattern]) => labels.some(name => name && pattern.test(name)))?.[1];
-    const commercialPoi = namedCommercial ? commercialBrandMarkers.get(individualName.trim().toLowerCase()) ?? 'landmark' : null;
+    const commercialPoi = namedCommercial ? brandPoi ?? 'landmark' : null;
     const specialPoi = facilityPoi ?? commercialPoi ?? (b.srv === 'Residential' ? 'residential' : null);
     const codes = b.salesCodes ?? [];
     const salesPoi = salesMarkers.find(([resources]) => resources.some(code => codes.includes(code)))?.[1];
@@ -557,6 +589,12 @@ export function buildCity(city: CityData, progress: (msg: string) => void = () =
     const companies = b.companies?.join(' · ') ?? '';
     const addressLabel = b.address ? (/\p{Script=Han}/u.test(b.address.street)
       ? b.address.street + b.address.number + '号' : [b.address.street, b.address.number].filter(Boolean).join(' ')) : '';
+    const district = b.district ?? districtAt(cx, cz);
+    const address = [district, addressLabel].filter(Boolean).join(/\p{Script=Han}$/u.test(district) && /^\p{Script=Han}/u.test(addressLabel) ? '' : ' ');
+    const labelType = residentialLabel(b);
+    const indexBuilding = (name: string, sub: string, center: XY, zoom: number, type?: string, alias?: boolean) => {
+      search.push({ name, sub, center, zoom, kind: 'poi', buildingId: cat ? b.id : undefined, address, labelType: type, alias });
+    };
     const addressOnly = !companies && !b.myname && !b.individualName && !!addressLabel && (business !== null || b.srv === 'Residential');
     const addressText = !community && addressOnly && !specialPoi && !salesPoi;
     const companyMarker = !community && !namedCommercial && !facilityPoi && business && companies ? salesPoi ?? business : null;
@@ -575,12 +613,16 @@ export function buildCity(city: CityData, progress: (msg: string) => void = () =
       const center = toLngLat(cx + dx, cz + dz);
       places.push({ type: 'Feature', properties: { ...businessInfo, buildingId: b.id, kind: 'poi', poi: companyMarker, name: companies,
         rank: companyIsChosenName ? 4 : 6, area: Math.round(area) }, geometry: { type: 'Point', coordinates: center } });
-      for (const name of b.companies ?? []) search.push({ name, kind: 'poi', sub: companyMarker, center, zoom: 17 });
     } else if (addressText && !head) {
       const center = toLngLat(cx, cz);
       places.push({ type: 'Feature', properties: { ...businessInfo, buildingId: b.id, kind: 'business-address', name: addressLabel, area: Math.round(area) },
         geometry: { type: 'Point', coordinates: center } });
-      search.push({ name: addressLabel, kind: 'poi', sub: 'address', center, zoom: 18 });
+      indexBuilding(addressLabel, 'address', center, 18, labelType ?? cat?.cat);
+    }
+    if (business && companies && (companyMarker || (cat && !head))) {
+      const center = toLngLat(cx + dx, cz + dz);
+      const companyType = business === 'shop' ? 'commercial' : business === 'industry' ? 'industrial' : 'office';
+      for (const name of b.companies ?? []) indexBuilding(name, companyMarker ?? salesPoi ?? business, center, 17, companyType, !companyMarker);
     }
     if (!cat) { bump('bld:skipped'); continue; }
     bump('bld:' + cat.cat);
@@ -595,7 +637,10 @@ export function buildCity(city: CityData, progress: (msg: string) => void = () =
     const nm = b.myname || head?.myname || b.individualName || ((addressOnly || specialPoi === 'residential') ? addressLabel : undefined) ||
       (head ? cleanName(head.name) : (specialPoi || cat.poi) && b.exportLabel ? b.exportLabel : asset);
     const gid = headId ?? b.id;
-    const base = { ...businessInfo, ...b.stats, id: b.id, cat: cat.cat, name: nm, asset, named: b.myname || head?.myname ? 1 : 0, srv: b.srv, icls: b.icls, area: Math.round(area), district: districtAt(cx, cz), part: head ? 1 : 0, grp: gid, nparts: groupSize.get(gid) ?? 1,
+    const owner = ownershipHead?.get(gid);
+    const base = { ...businessInfo, ...b.stats, id: b.id, cat: cat.cat, name: nm, asset, named: b.myname || head?.myname ? 1 : 0, srv: b.srv, icls: b.icls, area: Math.round(area), district, part: head ? 1 : 0, grp: gid, nparts: groupSize.get(gid) ?? 1,
+      ...(owner !== undefined && byId.get(gid)?.independentAnnex ? { parentGroup: owner } : {}),
+      ...(labelType ? { labelType } : {}),
       ...(community ? { communityId: community.id } : {}) };
     lots.push({ type: 'Feature', id: b.id, properties: base, geometry: { type: 'Polygon', coordinates: [ordered.map(llxy)] } });
     if (cat.inset < 1 && cat.height > 0) {
@@ -607,7 +652,7 @@ export function buildCity(city: CityData, progress: (msg: string) => void = () =
     }
     if (community) {
       const group = communities.get(community.id) ?? { name: community.name, buildings: [] };
-      group.buildings.push({ id: b.id, number: community.number, x: cx, z: cz });
+      group.buildings.push({ id: b.id, number: community.number, x: cx, z: cz, address, labelType });
       communities.set(community.id, group);
       continue;
     }
@@ -615,29 +660,30 @@ export function buildCity(city: CityData, progress: (msg: string) => void = () =
     if (b.myname && stMode && !head && !specialPoi) continue;
     if (head || addressText || (!specialPoi && companyMarker && (companyIsChosenName || salesPoi))) continue;
     // toll booths get their own marker (tolls section); don't also label them as a named landmark
-    const poi = specialPoi ?? salesPoi ?? (/Toll Booth/i.test(b.name) ? null : cat.poi ??
+    const sportPoi = cat.poi === 'sports' ? sportMarkers.find(([pattern]) => labels.some(name => name && pattern.test(name)))?.[1] : undefined;
+    const poi = specialPoi ?? salesPoi ?? sportPoi ?? (/Toll Booth/i.test(b.name) ? null : cat.poi ??
       (b.myname || b.independentAnnex ? (b.subsrv.includes('Bus') ? 'bus' : 'landmark') : null));
-    if (poi && (poi === 'residential' || nm.length > 1) && (namedCommercial || b.myname || !(poi === 'landmark' && isJunkName(nm)))) {
+    if (poi && (poi === 'residential' || nm.length > 1) && (namedCommercial || b.myname || b.independentAnnex || !(poi === 'landmark' && isJunkName(nm)))) {
       if (poi !== 'residential' && b.exportLabel === undefined && poiSeen.some((p) => p.name === nm && Math.hypot(p.x - cx, p.z - cz) < 250)) continue;
       poiSeen.push({ name: nm, x: cx, z: cz, poi, area });
       let rank = poi === 'hospital' && cat.height > 20 ? 3 : poi === 'landmark' ? (area > 8000 ? 4 : 5) : poi === 'school' && /University/i.test(b.icls) ? 4 : 6;
       if (b.myname || namedCommercial) rank = Math.min(rank, 4);
       const center = toLngLat(cx - dx, cz - dz);
       places.push({ type: 'Feature', properties: { buildingId: b.id, kind: 'poi', poi, name: nm, rank, area: Math.round(area) }, geometry: { type: 'Point', coordinates: center } });
-      if (nm) search.push({ name: nm, kind: 'poi', sub: poi, center, zoom: 17 });
-    }
+      if (nm) indexBuilding(nm, poi, center, 17, labelType);
+    } else if (addressLabel && !companyMarker) indexBuilding(nm || addressLabel, 'address', toLngLat(cx, cz), 18, labelType ?? cat.cat);
   }
   for (const [communityId, group] of communities) {
     const members = group.buildings.sort((a, b) => a.number - b.number || a.id - b.id);
     const center = toLngLat(members.reduce((x, b) => x + b.x, 0) / members.length,
       members.reduce((z, b) => z + b.z, 0) / members.length);
     places.push({ type: 'Feature', properties: { kind: 'community', communityId, name: group.name }, geometry: { type: 'Point', coordinates: center } });
-    search.push({ name: group.name, kind: 'poi', sub: 'residential', center, zoom: 16.8 });
+    search.push({ name: group.name, kind: 'poi', sub: 'residential', center, zoom: 16.8, labelType: 'community' });
     for (const b of members) {
       const position = toLngLat(b.x, b.z), numberLabel = `${b.number}号楼`;
       places.push({ type: 'Feature', properties: { kind: 'community-building', buildingId: b.id, name: numberLabel, number: b.number },
         geometry: { type: 'Point', coordinates: position } });
-      search.push({ name: group.name + numberLabel, kind: 'poi', sub: 'residential', center: position, zoom: 18, buildingId: b.id });
+      search.push({ name: group.name + numberLabel, kind: 'poi', sub: 'residential', center: position, zoom: 18, buildingId: b.id, address: b.address, labelType: b.labelType });
     }
   }
   // Station footprints. A named station is its whole asset: main hall, extra halls and platform/stair props,
@@ -843,7 +889,8 @@ export function buildCity(city: CityData, progress: (msg: string) => void = () =
     const mode = ls.length ? modeOf(ls[0].type) : [...st.modes][0];
     const lineNames = ls.map((l) => l.name).join(' · ');
     const color = ls.length ? hex(ls[0].color) : modeColor[mode] ?? '#4f5d73';
-    places.push({ type: 'Feature', properties: { kind: 'station', poi: mode, name: st.name, lines: lineNames, color, rank: mode === 'train' ? 1 : mode === 'ferry' ? 4 : 2, nlines: ls.length }, geometry: { type: 'Point', coordinates: toLngLat(st.x, st.z) } });
+    const label = st.modes.has('metro') ? metroStopLabel(st.name) : st.name;
+    places.push({ type: 'Feature', properties: { kind: 'station', poi: mode, name: st.name, label, lines: lineNames, color, rank: mode === 'train' ? 1 : mode === 'ferry' ? 4 : 2, nlines: ls.length }, geometry: { type: 'Point', coordinates: toLngLat(st.x, st.z) } });
     if (st.name) search.push({ name: st.name, kind: 'station', sub: mode, center: toLngLat(st.x, st.z), zoom: 16 });
   }
   // stop order per line, using the station names the player gave
@@ -863,6 +910,7 @@ export function buildCity(city: CityData, progress: (msg: string) => void = () =
       }
     }
     l.stopNames = route; l.shape = shape;
+    if (l.type === 'metro') l.stopLabels = route.map(metroStopLabel);
   }
   for (const b of busStops) {
     const lines = [...b.lines].map((id) => trById.get(id)!.name).join(' · ');
@@ -895,6 +943,9 @@ export function buildCity(city: CityData, progress: (msg: string) => void = () =
       }
     }
     schem.lines.push({ id: tr.id, name: tr.name, color: hex(tr.color), mode, stations: seq, stopIds: tr.stops.filter((x) => city.nodes.has(x)) });
+  }
+  for (const line of schem.lines) if (line.mode === 'metro') {
+    for (const index of line.stations) schem.stations[index].name = metroStopLabel(schem.stations[index].name);
   }
 
   // ------------------------------------------------------------ water

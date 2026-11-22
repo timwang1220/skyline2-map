@@ -22,8 +22,15 @@ import tower from './lucide-icons/radio-tower.svg?raw';
 import starbucks from './brand-icons/starbucks.svg?raw';
 import apple from './brand-icons/apple.svg?raw';
 import aldi from './brand-icons/aldisud.svg?raw';
+import lawsonLogo from './brand-icons/lawson.png?inline';
+import familymart from './brand-icons/familymart.svg?raw';
+import mcdonalds from './brand-icons/mcdonalds.svg?raw';
+import basketball from './sport-icons/ball-basketball.svg?raw';
+import football from './sport-icons/play-football.svg?raw';
+import tennis from './sport-icons/sports-tennis.svg?raw';
+import swimming from './sport-icons/swimming.svg?raw';
 
-type SvgBadge = { svg: string; color: string; scale?: number };
+type SvgBadge = { svg: string; color: string; scale?: number; ink?: string; rim?: string };
 const svgBadges: Record<string, SvgBadge> = {
   residential: { svg: house, color: '#3276cc' },
   beverages: { svg: drink, color: '#cc5a12' },
@@ -48,12 +55,19 @@ const svgBadges: Record<string, SvgBadge> = {
   starbucks: { svg: starbucks, color: '#006241', scale: 0.44 },
   apple: { svg: apple, color: '#44464b', scale: 0.44 },
   aldi: { svg: aldi, color: '#004976', scale: 0.49 },
+  lawson: { svg: `<image width="24" height="24" href="${lawsonLogo}" />`, color: '#ffffff', rim: '#c8d0d8', scale: 0.52 },
+  familymart: { svg: familymart, color: '#ffffff', rim: '#c8d0d8', scale: 0.46 },
+  mcdonalds: { svg: mcdonalds, color: '#b32721', ink: '#ffce42', scale: 0.44 },
+  basketball: { svg: basketball, color: '#d5792a' },
+  football: { svg: football, color: '#258855' },
+  tennis: { svg: tennis, color: '#789938', scale: 0.51 },
+  'swimming-pool': { svg: swimming, color: '#267bc5' },
 };
 
-function svgBadgeUrl({ svg, color, scale = 0.54 }: SvgBadge, size: number) {
-  const pictogram = svg.replace('currentColor', '#fff');
+function svgBadgeUrl({ svg, color, scale = 0.54, ink = '#fff', rim = '#fff' }: SvgBadge, size: number) {
+  const pictogram = svg.replace('currentColor', ink);
   const padding = 12 * (1 - scale);
-  const badge = `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 24 24"><circle cx="12" cy="12" r="11" fill="white"/><circle cx="12" cy="12" r="9.6" fill="${color}"/><g fill="white" transform="translate(${padding} ${padding}) scale(${scale})">${pictogram}</g></svg>`;
+  const badge = `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 24 24"><circle cx="12" cy="12" r="11" fill="${rim}"/><circle cx="12" cy="12" r="9.6" fill="${color}"/><g fill="${ink}" transform="translate(${padding} ${padding}) scale(${scale})">${pictogram}</g></svg>`;
   return 'data:image/svg+xml,' + encodeURIComponent(badge);
 }
 

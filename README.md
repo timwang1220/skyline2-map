@@ -31,6 +31,8 @@ In the repository containing this website's source, choose **Settings → Pages 
 
 ## Credits
 
+- Additional shop marks come from the [Lawson website favicon](https://www.lawson.co.jp/favicon.ico), the symbol in the [FamilyMart 2016 logo](https://commons.wikimedia.org/wiki/File:FamilyMart_Logo_(2016-).svg), and the [McDonald's SVG in Simple Icons](https://github.com/simple-icons/simple-icons/blob/32e030086fdc605196391aab28519b14dc4295b4/icons/mcdonalds.svg). The brands retain their trademarks.
+- Basketball, football and swimming use [Tabler Icons](https://github.com/tabler/tabler-icons/tree/v3.43.0/icons/outline) ([MIT](public/licenses/tabler.txt)). Tennis uses [Google Material Icons](https://github.com/google/material-design-icons/blob/master/src/social/sports_tennis/materialicons/24px.svg) ([Apache 2.0](public/licenses/material-design-icons.txt)).
 - SVGs in `src/lucide-icons/` are from [Lucide](https://github.com/lucide-icons/lucide/tree/c1a02a04d4f3f7049d44567d62b8b06cff0b9103/icons). See the [license notice](public/licenses/lucide.txt).
 - The Starbucks, Apple and Aldi Süd SVGs in `src/brand-icons/` are from [Simple Icons](https://github.com/simple-icons/simple-icons/tree/32e030086fdc605196391aab28519b14dc4295b4/icons) ([CC0 project notice](public/licenses/simple-icons.txt)). The Aldi Süd artwork is cropped to its stylized A for the small map badge. The respective owners retain their trademarks. The map uses the marks to identify stores in the fictional city.
 

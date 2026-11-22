@@ -238,6 +238,8 @@ export const RU: Record<string, string> = {
   "Ferry route": "Маршрут парома",
   "Canal": "Канал",
   "Low-density residential": "Жилая зона низкой плотности",
+  "Medium-density residential": "Жилая зона средней плотности",
+  "Residential community": "Жилой комплекс",
   "High-density residential": "Жилая зона высокой плотности",
   "Commercial": "Коммерция",
   "Office": "Офис",
