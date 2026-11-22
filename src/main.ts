@@ -438,7 +438,9 @@ async function openOnlineCity(code: string, remembered: boolean) {
   onlineStatus.hidden = true;
   let data: ArrayBuffer;
   try {
-    const response = await fetch(import.meta.env.BASE_URL + 'online-city/map.cs2map.enc', { signal: request.signal, cache: 'no-cache' });
+    const revision = import.meta.env.VITE_SOURCE_REVISION;
+    const mapUrl = import.meta.env.BASE_URL + 'online-city/map.cs2map.enc' + (revision ? `?v=${encodeURIComponent(revision)}` : '');
+    const response = await fetch(mapUrl, { signal: request.signal, cache: 'no-cache' });
     if (!response.ok) throw new Error('Map unavailable');
     const { decryptOnlineCity } = await import('./online-city-crypto.mjs');
     data = await decryptOnlineCity(await response.arrayBuffer(), code);
