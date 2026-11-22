@@ -317,6 +317,16 @@ export function buildStyle(o: StyleOptions, fontBase: string): StyleSpecificatio
       paint: { 'text-color': o.theme === 'light' ? '#a5581a' : '#f0a868', 'text-halo-color': p.halo, 'text-halo-width': 1.8 },
     } as LayerSpecification,
     {
+      id: 'community-label', type: 'symbol', source: 'places', filter: ['==', ['get', 'kind'], 'community'], minzoom: 13.8,
+      layout: {
+        visibility: lbl, 'icon-image': 'poi-residential', 'icon-size': ['interpolate', ['linear'], ['zoom'], 13.8, 0.85, 17, 1],
+        'text-field': ['get', 'name'], 'text-font': font('SemiBold'), 'text-size': ['interpolate', ['linear'], ['zoom'], 13.8, 12.5, 18, 14],
+        'text-variable-anchor-offset': ['literal', ['left', [1.1, 0], 'right', [-1.1, 0], 'top', [0, 1.05]]],
+        'text-padding': 3, 'icon-padding': 3,
+      },
+      paint: { 'text-color': o.theme === 'light' ? '#285b93' : '#9fc6f4', 'text-halo-color': p.halo, 'text-halo-width': 1.8 },
+    } as LayerSpecification,
+    {
       id: 'poi', type: 'symbol', source: 'places', filter: ['all', ['==', ['get', 'kind'], 'poi'], ['any', ['<=', ['get', 'rank'], 3], ['all', ['<=', ['get', 'rank'], 4], ['>=', ['zoom'], 15.2]], ['>=', ['zoom'], 15.8]]], minzoom: 14,
       layout: {
         visibility: lbl, 'icon-image': ['concat', 'poi-', ['get', 'poi']], 'icon-size': ['interpolate', ['linear'], ['zoom'], 14, 0.8, 17, 1],
@@ -328,6 +338,16 @@ export function buildStyle(o: StyleOptions, fontBase: string): StyleSpecificatio
         'text-color': ['match', ['get', 'poi'], 'hospital', '#c4433b', 'school', '#6a52b8', 'police', '#3f63c4', 'fire', '#c4543b', 'landmark', '#0d7f79', 'sports', '#2c8a4d', 'cemetery', '#5e7a63', o.theme === 'light' ? '#5f6368' : '#b0b5bd'],
         'text-halo-color': p.halo, 'text-halo-width': 1.8,
       },
+    } as LayerSpecification,
+    {
+      id: 'community-building', type: 'symbol', source: 'places', minzoom: 17,
+      filter: ['==', ['get', 'kind'], 'community-building'],
+      layout: {
+        visibility: lbl, 'text-field': ['get', 'name'], 'text-font': font('Medium'),
+        'text-size': ['interpolate', ['linear'], ['zoom'], 17, 11.5, 18.4, 13],
+        'text-padding': 3, 'symbol-sort-key': ['get', 'number'],
+      },
+      paint: { 'text-color': p.text, 'text-halo-color': p.halo, 'text-halo-width': 1.5 },
     } as LayerSpecification,
     {
       id: 'business-address', type: 'symbol', source: 'places', filter: ['==', ['get', 'kind'], 'business-address'], minzoom: 17,

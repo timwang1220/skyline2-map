@@ -527,7 +527,7 @@ const modeName = (m: string) => (MODES[m] ? t(MODES[m]) : m);
 /** names the export leaves generic ("Toll booth") are shown in the UI language */
 const nameOf = (p: { name?: string; named?: number }) => (p.name && !p.named && GENERIC_NAMES.includes(p.name) ? t(p.name) : p.name ?? '');
 void BOOTH_KINDS;
-const INTERACTIVE = ['station', 'toll', 'poi', 'business-address', 'park-label', 'district-label', 'busstop', 'transit-line', 'building-3d', 'building', 'bridge-fill', 'road-fill', 'tunnel-fill', 'ground-rail', 'bridge-rail', 'ground-subway', 'bridge-subway', 'runway', 'lots'];
+const INTERACTIVE = ['station', 'toll', 'community-label', 'community-building', 'poi', 'business-address', 'park-label', 'district-label', 'busstop', 'transit-line', 'building-3d', 'building', 'bridge-fill', 'road-fill', 'tunnel-fill', 'ground-rail', 'bridge-rail', 'ground-subway', 'bridge-subway', 'runway', 'lots'];
 const interactive = () => INTERACTIVE.filter((id) => map.getLayer(id) && map.getLayoutProperty(id, 'visibility') !== 'none');
 
 function setSelection(features: { type: 'Feature'; geometry: any; properties: any }[]) {
@@ -617,6 +617,13 @@ function describe(f: MapGeoJSONFeature, lng: number, lat: number) {
   if (layer === 'district-label') { showDistrict(p.name); return; }
   if (layer === 'park-label') { panel(head(p.name, L(p.poi) ?? t('Park area'), iconDataUrl(p.poi)) + `<div class="p-rows">${row('Type', L(p.poi))}${row('Position', coordText(lng, lat))}</div>`, '#34a05a'); return; }
   if (layer === 'toll') { showToll(p); panelRefresh = () => showToll(p); return; }
+  if (layer === 'community-label') {
+    const members = state.city!.sources.lots.features.filter(f => f.properties.communityId === p.communityId);
+    setSelection(members.map(f => ({ type: 'Feature', geometry: f.geometry, properties: {} })));
+    panel(head(p.name, t('Residential community'), iconDataUrl('residential')) + `<div class="p-rows">${row('Buildings', members.length)}</div>`);
+    return;
+  }
+  if (layer === 'community-building' && describeBuilding(Number(p.buildingId), lng, lat)) return;
   if (layer === 'poi' || layer === 'business-address') {
     const addressOnly = layer === 'business-address';
     if (p.buildingId !== undefined && describeBuilding(Number(p.buildingId), lng, lat, p.name, addressOnly ? undefined : iconDataUrl(p.poi))) return;
@@ -895,7 +902,7 @@ function roadAt(pt: { x: number; y: number }): { seg?: number } {
 }
 /** Name of whatever labelled thing is under a screen point, else a generic pin label. */
 function placeLabelAt(pt: { x: number; y: number }): string {
-  const order = ['station', 'poi', 'business-address', 'park-label', 'building', 'lots'];
+  const order = ['station', 'community-label', 'community-building', 'poi', 'business-address', 'park-label', 'building', 'lots'];
   const f = map.queryRenderedFeatures([[pt.x - 10, pt.y - 10], [pt.x + 10, pt.y + 10]], { layers: order.filter((l) => map.getLayer(l)) })
     .filter((x) => x.properties.name && (!x.layer.id.match(/^(building|lots)$/) || x.properties.named))
     .sort((a, b) => order.indexOf(a.layer.id) - order.indexOf(b.layer.id))[0];
@@ -947,7 +954,7 @@ function runSearch() {
     const n = s.name.toLowerCase();
     const i = n.indexOf(q);
     if (i < 0) continue;
-    const key = s.kind + s.name;
+    const key = s.buildingId === undefined ? s.kind + s.name : `building:${s.buildingId}`;
     if (seen.has(key)) continue;
     seen.add(key);
     scored.push([(i === 0 ? 0 : 10) + (KIND_ORDER[s.kind] ?? 5) * 2 + n.length / 100, s]);
@@ -983,11 +990,15 @@ function choose(s: SearchEntry) {
   if (s.kind === 'line') { const l = state.city!.meta.lines.find((x) => x.name === s.name); if (l) return selectLine(l.id, true); }
   if (s.bbox) map.fitBounds([[s.bbox[0], s.bbox[1]], [s.bbox[2], s.bbox[3]]], { padding: { top: 100, bottom: 60, left: innerWidth > 700 ? 420 : 40, right: 60 }, maxZoom: 16.5 });
   else map.flyTo({ center: s.center, zoom: s.zoom, speed: 1.6 });
+  if (s.buildingId !== undefined && describeBuilding(s.buildingId, s.center[0], s.center[1], s.name)) {
+    panelRefresh = null;
+    return;
+  }
   if (s.kind === 'road') showSearchedRoad(s.name);
   else {
     map.once('moveend', () => {
       const pt = map.project(s.center);
-      const f = map.queryRenderedFeatures([[pt.x - 20, pt.y - 20], [pt.x + 20, pt.y + 20]], { layers: ['district-label', 'park-label', 'poi', 'business-address', 'station', 'busstop'].filter((l) => map.getLayer(l)) }).find((x) => x.properties.name === s.name);
+      const f = map.queryRenderedFeatures([[pt.x - 20, pt.y - 20], [pt.x + 20, pt.y + 20]], { layers: ['district-label', 'park-label', 'community-label', 'poi', 'business-address', 'station', 'busstop'].filter((l) => map.getLayer(l)) }).find((x) => x.properties.name === s.name);
       if (s.kind === 'district') showDistrict(s.name);
       else if (f) describe(f, s.center[0], s.center[1]);
       else panel(head(s.name, s.kind === 'district' ? t('District') : L(s.sub) ?? s.sub));

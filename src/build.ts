@@ -12,7 +12,7 @@ interface Feature { type: 'Feature'; id?: number; properties: Props; geometry: {
 export interface FC { type: 'FeatureCollection'; features: Feature[] }
 const fc = (features: Feature[]): FC => ({ type: 'FeatureCollection', features });
 
-export interface SearchEntry { name: string; kind: string; sub: string; center: XY; zoom: number; bbox?: [number, number, number, number] }
+export interface SearchEntry { name: string; kind: string; sub: string; center: XY; zoom: number; bbox?: [number, number, number, number]; buildingId?: number }
 
 export interface BuiltCity {
   meta: {
@@ -511,6 +511,7 @@ export function buildCity(city: CityData, progress: (msg: string) => void = () =
   const lots: Feature[] = [];
   const blds: Feature[] = [];
   const places: Feature[] = [];
+  const communities = new Map<string, { name: string; buildings: { id: number; number: number; x: number; z: number }[] }>();
   const poiSeen: { name: string; x: number; z: number; poi: string; area: number }[] = [];
   const namedStations: { name: string; x: number; z: number; mode: string; modes: Set<string>; rings: XY[][]; used?: boolean }[] = [];
   const byId = new Map(city.buildings.map((b) => [b.id, b]));
@@ -542,6 +543,7 @@ export function buildCity(city: CityData, progress: (msg: string) => void = () =
       cat = inside >= 0.75 || !hc ? null : hc;
     }
     const cx = p2.reduce((s, p) => s + p[0], 0) / p2.length, cz = p2.reduce((s, p) => s + p[1], 0) / p2.length;
+    const community = !head && cat ? b.community : undefined;
     const business = b.companyKind ?? (b.srv === 'Commercial' ? 'shop' : b.srv === 'Industrial' ? 'industry' : b.srv === 'Office' ? 'office' : null);
     const individualName = b.myname || b.individualName || '';
     const namedCommercial = business === 'shop' && !!individualName;
@@ -556,8 +558,8 @@ export function buildCity(city: CityData, progress: (msg: string) => void = () =
     const addressLabel = b.address ? (/\p{Script=Han}/u.test(b.address.street)
       ? b.address.street + b.address.number + '号' : [b.address.street, b.address.number].filter(Boolean).join(' ')) : '';
     const addressOnly = !companies && !b.myname && !b.individualName && !!addressLabel && (business !== null || b.srv === 'Residential');
-    const addressText = addressOnly && !specialPoi && !salesPoi;
-    const companyMarker = !namedCommercial && !facilityPoi && business && companies ? salesPoi ?? business : null;
+    const addressText = !community && addressOnly && !specialPoi && !salesPoi;
+    const companyMarker = !community && !namedCommercial && !facilityPoi && business && companies ? salesPoi ?? business : null;
     let dx = 0, dz = 0;
     if (specialPoi === 'residential' && companyMarker) {
       // Separate the two markers along the frontage of a mixed-use lot.
@@ -593,7 +595,8 @@ export function buildCity(city: CityData, progress: (msg: string) => void = () =
     const nm = b.myname || head?.myname || b.individualName || ((addressOnly || specialPoi === 'residential') ? addressLabel : undefined) ||
       (head ? cleanName(head.name) : (specialPoi || cat.poi) && b.exportLabel ? b.exportLabel : asset);
     const gid = headId ?? b.id;
-    const base = { ...businessInfo, ...b.stats, id: b.id, cat: cat.cat, name: nm, asset, named: b.myname || head?.myname ? 1 : 0, srv: b.srv, icls: b.icls, area: Math.round(area), district: districtAt(cx, cz), part: head ? 1 : 0, grp: gid, nparts: groupSize.get(gid) ?? 1 };
+    const base = { ...businessInfo, ...b.stats, id: b.id, cat: cat.cat, name: nm, asset, named: b.myname || head?.myname ? 1 : 0, srv: b.srv, icls: b.icls, area: Math.round(area), district: districtAt(cx, cz), part: head ? 1 : 0, grp: gid, nparts: groupSize.get(gid) ?? 1,
+      ...(community ? { communityId: community.id } : {}) };
     lots.push({ type: 'Feature', id: b.id, properties: base, geometry: { type: 'Polygon', coordinates: [ordered.map(llxy)] } });
     if (cat.inset < 1 && cat.height > 0) {
       const r = rnd(gid); // one height factor per asset, so its parts read as one building
@@ -601,6 +604,12 @@ export function buildCity(city: CityData, progress: (msg: string) => void = () =
       const inner = ordered.map(([x, z]) => llxy([cx + (x - cx) * f, cz + (z - cz) * f]));
       const h = b.modelHeight ?? Math.round(cat.height * (0.75 + r * 0.5) * (cat.cat === 'residential_high' || cat.cat === 'office' || cat.cat === 'commercial' ? Math.min(1.6, Math.max(0.8, Math.sqrt(area) / 26)) : 1));
       blds.push({ type: 'Feature', id: b.id, properties: { ...base, h, ...(b.modelHeight !== undefined ? { modelHeight: true } : {}) }, geometry: { type: 'Polygon', coordinates: [inner] } });
+    }
+    if (community) {
+      const group = communities.get(community.id) ?? { name: community.name, buildings: [] };
+      group.buildings.push({ id: b.id, number: community.number, x: cx, z: cz });
+      communities.set(community.id, group);
+      continue;
     }
     // stations the player named are attached to the transit markers below
     if (b.myname && stMode && !head && !specialPoi) continue;
@@ -616,6 +625,19 @@ export function buildCity(city: CityData, progress: (msg: string) => void = () =
       const center = toLngLat(cx - dx, cz - dz);
       places.push({ type: 'Feature', properties: { buildingId: b.id, kind: 'poi', poi, name: nm, rank, area: Math.round(area) }, geometry: { type: 'Point', coordinates: center } });
       if (nm) search.push({ name: nm, kind: 'poi', sub: poi, center, zoom: 17 });
+    }
+  }
+  for (const [communityId, group] of communities) {
+    const members = group.buildings.sort((a, b) => a.number - b.number || a.id - b.id);
+    const center = toLngLat(members.reduce((x, b) => x + b.x, 0) / members.length,
+      members.reduce((z, b) => z + b.z, 0) / members.length);
+    places.push({ type: 'Feature', properties: { kind: 'community', communityId, name: group.name }, geometry: { type: 'Point', coordinates: center } });
+    search.push({ name: group.name, kind: 'poi', sub: 'residential', center, zoom: 16.8 });
+    for (const b of members) {
+      const position = toLngLat(b.x, b.z), numberLabel = `${b.number}号楼`;
+      places.push({ type: 'Feature', properties: { kind: 'community-building', buildingId: b.id, name: numberLabel, number: b.number },
+        geometry: { type: 'Point', coordinates: position } });
+      search.push({ name: group.name + numberLabel, kind: 'poi', sub: 'residential', center: position, zoom: 18, buildingId: b.id });
     }
   }
   // Station footprints. A named station is its whole asset: main hall, extra halls and platform/stair props,

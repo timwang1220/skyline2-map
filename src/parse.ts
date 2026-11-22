@@ -20,7 +20,8 @@ export interface CBuilding { id: number; name: string; /** name the player gave 
   /** `prntb`: previous building in the asset's sub-building chain (0 = none); see buildingGroups */ parent: number;
   /** `subb`: next building in that chain (0 = none) */ sub: number; pts: Vec3[]; companies?: string[]; companyKind?: 'shop' | 'industry' | 'office';
   address?: { number: string; street: string }; products?: { sells?: string; produces?: string; stores?: string }; salesCodes?: string[];
-  exportLabel?: string; individualName?: string; independentAnnex?: boolean; stats?: BuildingStats; modelHeight?: number }
+  exportLabel?: string; individualName?: string; independentAnnex?: boolean; stats?: BuildingStats; modelHeight?: number;
+  community?: { id: string; name: string; number: number } }
 
 export type BuildingStats = Partial<Record<'residents' | 'households' | 'capacity' | 'averageRent' | 'employees' | 'jobs' | 'averageSalary', number>>;
 export interface PopulationGrid {

@@ -467,6 +467,7 @@ export async function readCmm(bytes: Uint8Array, cat: LaneCatalog, nativeTerrain
       ...(companies.length ? { companies: [...new Set<string>(companies)] } : {}), companyKind, products, exportLabel,
       salesCodes: nativeTerrain && Array.isArray(b.sales_codes) ? b.sales_codes.filter((code: unknown) => typeof code === 'string') : undefined,
       stats: nativeTerrain ? b.skyline_stats : undefined,
+      community: nativeTerrain ? b.skyline_community : undefined,
       modelHeight: nativeTerrain && typeof b.height_m === 'number' && Number.isFinite(b.height_m) && b.height_m > 0 ? b.height_m : undefined,
       individualName: b.individual_name === true || b.independent_annex === true ? exportLabel : undefined,
       independentAnnex: nativeTerrain && b.independent_annex === true,

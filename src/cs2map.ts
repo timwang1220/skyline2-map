@@ -82,7 +82,7 @@ export async function normalizeCs2Map(bytes: Uint8Array, fileTime: string) {
   const data = await readExportMembers(bytes, {
     'main.xml': MB, 'roads.xml': 32 * MB, 'rails.xml': 24 * MB, 'buildings.xml': 32 * MB,
     'districts.xml': 16 * MB, 'transports.xml': 32 * MB, 'terrain.dat': 64 * MB, 'water.dat': 64 * MB,
-  }, { 'skyline-businesses.xml': 24 * MB, 'skyline-transit.xml': MB, 'skyline-building-stats.xml': 24 * MB });
+  }, { 'skyline-businesses.xml': 24 * MB, 'skyline-transit.xml': MB, 'skyline-building-stats.xml': 24 * MB, 'skyline-communities.xml': 8 * MB });
   const xml = (name: string, root: string) => {
     const result = new DOMParser().parseFromString(new TextDecoder('utf-8', { fatal: true }).decode(data.get(name + '.xml')), 'application/xml');
     if (result.documentElement.localName !== root || result.doctype) throw new Error(`Invalid CS2MapView ${name}.xml`);
@@ -161,6 +161,19 @@ export async function normalizeCs2Map(bytes: Uint8Array, fileTime: string) {
     [0x100200, 'Road'], [0x400 | 0x800 | 0x20000 | 0x40000 | 0x80000, 'Civic']] as const;
   const exportedBuildings = children(buildings, 'Buildings');
   const buildingsById = new Map(exportedBuildings.map((e) => [id(e), e]));
+  const memberships = new Map<number, { id: string; name: string; number: number }>();
+  if (data.has('skyline-communities.xml')) {
+    const root = xml('skyline-communities', 'SkylineCommunities');
+    if (attr(root, 'version') === '1') for (const group of root.querySelectorAll(':scope > Community')) {
+      const groupId = attr(group, 'id').trim(), name = attr(group, 'name').trim();
+      if (!groupId || !name) continue;
+      for (const member of group.querySelectorAll(':scope > Building')) {
+        const entity = Number(attr(member, 'entity')), number = Number(attr(member, 'number'));
+        if (buildingsById.has(entity) && !memberships.has(entity) && Number.isSafeInteger(number) && number > 0)
+          memberships.set(entity, { id: groupId, name, number });
+      }
+    }
+  }
   const footprints = exportedBuildings.map((e) => {
     const prefab = required(buildingPrefabs.get(numberAttr(e, 'prefab')) ?? null, 'building prefab');
     const [x, y, z] = xyz(child(e, 'Position')), [w, h, d] = xyz(child(prefab, 'Size')), rotation = child(e, 'Rotation');
@@ -184,6 +197,7 @@ export async function normalizeCs2Map(bytes: Uint8Array, fileTime: string) {
     const independentAnnex = !!parent && !upgrades.has(buildingId) && services.some(([flag]) => flags & flag) &&
       !!name && !name.startsWith('Assets.') && name !== attr(parent, 'name').trim();
     return { id: buildingId, name: prefabName, service: services.find(([flag]) => flags & flag)?.[1] ?? '', footprint, base_elevation_m: y, height_m: h, skyline_stats: stats.get(buildingId),
+      skyline_community: memberships.get(buildingId),
       independent_annex: independentAnnex,
       individual_name: !!(flags & 0x20000000) && (!!(flags & 0x1000000) || /signature/i.test(prefabName)) &&
         !!name && !name.startsWith('Assets.'),
